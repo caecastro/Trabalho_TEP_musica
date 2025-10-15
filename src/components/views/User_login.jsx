@@ -1,13 +1,18 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 function User_login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const navigate = useNavigate(); // Hook para navegação
 
   const handleSubmit = (e) => {
     e.preventDefault();
     console.log("Username:", username);
     console.log("Password:", password);
+
+    // Redireciona para /home
+    navigate("/home");
   };
 
   return (
@@ -23,7 +28,7 @@ function User_login() {
           onChange={(e) => setUsername(e.target.value)}
           placeholder="Usuário"
           required
-          className="w-full px-4 py-2 bg-gray-100 border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black"
+          className="w-full px-4 py-2 bg-gray-100 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black"
         />
 
         <input
