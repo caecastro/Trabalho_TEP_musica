@@ -4,6 +4,7 @@ import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import TelaInicial from "./Tela_inicial.jsx";
 import Home from "./pages/Home.jsx";
 import Musicas from "./pages/Musicas.jsx";
+import Criaddor from "./components/assets/Criador.jsx";
 import "./index.css";
 
 const router = createBrowserRouter([
@@ -18,6 +19,10 @@ const router = createBrowserRouter([
   {
     path: "/musicas/:id",
     element: <Musicas />,
+  },
+  {
+    path: "/criador",
+    element: <Criaddor />, // rota para criar playlists
   },
 ]);
 createRoot(document.getElementById("root")).render(
