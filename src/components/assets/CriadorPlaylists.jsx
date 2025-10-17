@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { FaArrowLeft } from "react-icons/fa";
 
-function Criaddor() {
+function CriadorPlaylists() {
   const [nome, setNome] = useState("");
   const [musicasSelecionadas, setMusicasSelecionadas] = useState([]);
   const [user] = useState("Usuário Genérico");
@@ -89,14 +89,6 @@ function Criaddor() {
           />
         </div>
 
-        {/* Upload de imagem */}
-        <div>
-          <label className="block mb-2">Imagem da Playlist</label>
-          <div className="w-full h-32 bg-black flex items-center justify-center rounded-lg border-2 border-dashed border-gray-500 text-gray-400">
-            Arraste sua imagem aqui (genérico)
-          </div>
-        </div>
-
         {/* Botão */}
         <button
           type="submit"
@@ -109,4 +101,4 @@ function Criaddor() {
   );
 }
 
-export default Criaddor;
+export default CriadorPlaylists;
