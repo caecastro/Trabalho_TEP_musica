@@ -9,16 +9,26 @@ import {
   FaListUl,
 } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
+import PropTypes from "prop-types";
 import { useState } from "react";
 
-function Controller() {
+function Controller({ onSearch }) {
   const navigate = useNavigate();
   const [showPlaylists, setShowPlaylists] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const handleLogout = () => {
     const confirmLogout = window.confirm("Tem certeza que deseja sair?");
     if (confirmLogout) {
       navigate("/");
+    }
+  };
+
+  const handleSearchChange = (e) => {
+    const value = e.target.value;
+    setSearchTerm(value);
+    if (onSearch) {
+      onSearch(value);
     }
   };
 
@@ -51,6 +61,8 @@ function Controller() {
             type="text"
             placeholder="Pesquisar..."
             className="bg-transparent outline-none text-white placeholder-gray-400"
+            value={searchTerm}
+            onChange={handleSearchChange}
           />
         </div>
 
@@ -94,5 +106,8 @@ function Controller() {
     </div>
   );
 }
+Controller.propTypes = {
+  onSearch: PropTypes.func,
+};
 
 export default Controller;
