@@ -1,11 +1,26 @@
+import { useEffect } from "react";
+import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import User_login from "./components/views/User_login";
 
 function Tela_inicial() {
   const navigate = useNavigate();
+  const { isAuthenticated } = useSelector((state) => state.auth);
+
+  // Use useEffect para o redirecionamento
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate("/home");
+    }
+  }, [isAuthenticated, navigate]);
+
+  // Se estiver autenticado, mostra nada (será redirecionado)
+  if (isAuthenticated) {
+    return null;
+  }
 
   return (
-    <div className="flex flex-col items-center min-h-screen bg-gray-900 text-black">
+    <div className="flex flex-col items-center min-h-screen bg-gray-900 text-white">
       {/* Header */}
       <header className="flex items-center gap-4 mt-8">
         <img
@@ -26,7 +41,7 @@ function Tela_inicial() {
         {/* Botão para criação de novo usuário */}
         <button
           onClick={() => navigate("/register")}
-          className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-2xl shadow-md hover:bg-blue-700 transition-all"
+          className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-all"
         >
           Criar novo usuário
         </button>

@@ -1,30 +1,120 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { FaArrowLeft } from "react-icons/fa";
+import { useState, useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
+import { FaArrowLeft, FaCheck, FaMusic, FaSave } from "react-icons/fa";
+import {
+  createPlaylist,
+  updatePlaylist,
+} from "../../store/slices/playlistsSlice";
+import { fetchPopularTracks } from "../../store/slices/musicSlice";
 
 function CriadorPlaylists() {
+  const { id } = useParams();
   const [nome, setNome] = useState("");
   const [musicasSelecionadas, setMusicasSelecionadas] = useState([]);
-  const [user] = useState("Usuário Genérico");
+  const [playlistOriginal, setPlaylistOriginal] = useState(null); // ← ADICIONADO para guardar a playlist original
+  const dispatch = useDispatch();
   const navigate = useNavigate();
 
+  const { user } = useSelector((state) => state.auth);
+  const { popularTracks, loading } = useSelector((state) => state.music);
+  const { playlists } = useSelector((state) => state.playlists);
+
+  const isEditMode = !!id;
+
+  useEffect(() => {
+    dispatch(fetchPopularTracks());
+
+    if (isEditMode) {
+      const playlist = playlists.find((p) => p.id === id);
+
+      if (!playlist) {
+        alert("Playlist não encontrada!");
+        navigate("/home");
+        return;
+      }
+
+      // ← CORREÇÃO: Verificação mais robusta da permissão
+      const canEdit = playlist.usuarioId === user?.id || playlist.isDefault;
+
+      if (!canEdit) {
+        alert("Você não tem permissão para editar esta playlist!");
+        navigate("/home");
+        return;
+      }
+
+      setPlaylistOriginal(playlist); // ← SALVAR A PLAYLIST ORIGINAL
+      setNome(playlist.nome);
+      setMusicasSelecionadas(playlist.musicas || []);
+    }
+  }, [dispatch, id, isEditMode, playlists, user, navigate]);
+
   const handleSelectMusica = (musica) => {
-    if (musicasSelecionadas.includes(musica)) {
-      setMusicasSelecionadas(musicasSelecionadas.filter((m) => m !== musica));
+    if (musicasSelecionadas.find((m) => m.id === musica.id)) {
+      setMusicasSelecionadas(
+        musicasSelecionadas.filter((m) => m.id !== musica.id)
+      );
     } else {
       setMusicasSelecionadas([...musicasSelecionadas, musica]);
     }
   };
 
+  const handleSelectAll = () => {
+    if (musicasSelecionadas.length === popularTracks.length) {
+      setMusicasSelecionadas([]);
+    } else {
+      setMusicasSelecionadas([...popularTracks]);
+    }
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    console.log("Nova Playlist Criada:", {
-      nome,
-      musicasSelecionadas,
-      user,
-    });
-    alert("Playlist criada (simulação)!");
+    if (!nome.trim()) {
+      alert("Digite um nome para a playlist!");
+      return;
+    }
+
+    if (musicasSelecionadas.length === 0) {
+      alert("Selecione pelo menos uma música!");
+      return;
+    }
+
+    if (isEditMode) {
+      // ← CORREÇÃO: Usar a playlist original mantendo todos os dados
+      if (!playlistOriginal) {
+        alert("Erro: Playlist original não encontrada!");
+        return;
+      }
+
+      const playlistData = {
+        ...playlistOriginal, // ← MANTER TODOS OS DADOS ORIGINAIS
+        nome: nome.trim(),
+        musicas: musicasSelecionadas,
+        updatedAt: new Date().toISOString(), // ← ATUALIZAR TIMESTAMP
+      };
+
+      dispatch(updatePlaylist(playlistData));
+      alert(`Playlist "${nome}" atualizada com sucesso!`);
+    } else {
+      // Modo criação
+      const playlistData = {
+        nome: nome.trim(),
+        musicas: musicasSelecionadas,
+      };
+      dispatch(createPlaylist(playlistData));
+      alert(`Playlist "${nome}" criada com sucesso!`);
+    }
+
+    navigate("/home");
   };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white">
+        <div className="text-2xl">Carregando músicas...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center min-h-screen bg-gray-900 text-white p-6 relative">
@@ -37,65 +127,139 @@ function CriadorPlaylists() {
         <span>Voltar</span>
       </button>
 
-      <h1 className="text-3xl font-bold mb-6">Criar Nova Playlist</h1>
+      <h1 className="text-3xl font-bold mb-6">
+        {isEditMode ? "Editar Playlist" : "Criar Nova Playlist"}
+      </h1>
 
       <form
         onSubmit={handleSubmit}
-        className="bg-gray-800 p-6 rounded-lg shadow-md w-full max-w-lg space-y-4"
+        className="bg-gray-800 p-6 rounded-lg shadow-md w-full max-w-4xl space-y-6"
       >
         {/* Nome da playlist */}
         <div>
-          <label className="block mb-2">Nome da Playlist</label>
+          <label className="block mb-2 text-lg">Nome da Playlist</label>
           <input
             type="text"
             value={nome}
             onChange={(e) => setNome(e.target.value)}
-            placeholder="Digite o nome..."
-            className="w-full px-3 py-2 rounded bg-gray-700 text-white outline-none"
+            placeholder="Digite o nome da sua playlist..."
+            className="w-full px-4 py-3 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-blue-500"
+            maxLength={50}
           />
-        </div>
-
-        {/* Músicas */}
-        <div>
-          <label className="block mb-2">Selecione as músicas</label>
-          <div className="grid grid-cols-2 gap-2">
-            {Array.from({ length: 10 }).map((_, i) => {
-              const musica = `Música ${i + 1}`;
-              return (
-                <label
-                  key={i}
-                  className="flex items-center gap-2 cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    checked={musicasSelecionadas.includes(musica)}
-                    onChange={() => handleSelectMusica(musica)}
-                  />
-                  {musica}
-                </label>
-              );
-            })}
+          <div className="text-right text-sm text-gray-400 mt-1">
+            {nome.length}/50 caracteres
           </div>
         </div>
 
-        {/* Usuário */}
-        <div>
-          <label className="block mb-2">Criado por</label>
-          <input
-            type="text"
-            value={user}
-            disabled
-            className="w-full px-3 py-2 rounded bg-gray-700 text-gray-400 outline-none"
-          />
+        {/* Informações do usuário */}
+        <div className="bg-gray-700 p-4 rounded-lg">
+          <label className="block mb-2 text-sm text-gray-400">Criado por</label>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+              <span className="font-semibold">
+                {user?.email?.charAt(0).toUpperCase() || "U"}
+              </span>
+            </div>
+            <span>{user?.email || "Usuário"}</span>
+          </div>
         </div>
 
-        {/* Botão */}
-        <button
-          type="submit"
-          className="w-full py-2 bg-blue-600 hover:bg-blue-800 rounded-lg font-semibold"
-        >
-          Criar Playlist
-        </button>
+        {/* Seletor de músicas */}
+        <div>
+          <div className="flex justify-between items-center mb-4">
+            <label className="block text-lg">Selecionar Músicas</label>
+            <button
+              type="button"
+              onClick={handleSelectAll}
+              className="text-sm bg-gray-600 hover:bg-gray-500 px-3 py-1 rounded"
+            >
+              {musicasSelecionadas.length === popularTracks.length
+                ? "Desmarcar Todas"
+                : "Selecionar Todas"}
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-96 overflow-y-auto">
+            {popularTracks.map((musica) => (
+              <label
+                key={musica.id}
+                className={`flex items-center gap-3 cursor-pointer p-3 rounded-lg border-2 transition-all ${
+                  musicasSelecionadas.find((m) => m.id === musica.id)
+                    ? "border-blue-500 bg-blue-500 bg-opacity-10"
+                    : "border-gray-600 hover:border-gray-500"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={
+                    !!musicasSelecionadas.find((m) => m.id === musica.id)
+                  }
+                  onChange={() => handleSelectMusica(musica)}
+                  className="hidden"
+                />
+                <div
+                  className={`w-6 h-6 rounded border-2 flex items-center justify-center ${
+                    musicasSelecionadas.find((m) => m.id === musica.id)
+                      ? "bg-blue-500 border-blue-500"
+                      : "border-gray-400"
+                  }`}
+                >
+                  {musicasSelecionadas.find((m) => m.id === musica.id) && (
+                    <FaCheck className="text-white text-xs" />
+                  )}
+                </div>
+
+                <img
+                  src={musica.thumbnail}
+                  alt={musica.nome}
+                  className="w-12 h-12 object-cover rounded"
+                  onError={(e) => {
+                    e.target.src = "/src/assets/react.svg";
+                  }}
+                />
+
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold truncate">{musica.nome}</div>
+                  <div className="text-sm text-gray-400 truncate">
+                    {musica.artista}
+                  </div>
+                </div>
+
+                <div className="text-xs text-gray-400 text-right">
+                  <div>{musica.duracao}</div>
+                  <div>{musica.ano}</div>
+                </div>
+              </label>
+            ))}
+          </div>
+
+          <div className="text-sm text-gray-400 mt-2">
+            {musicasSelecionadas.length} música(s) selecionada(s)
+          </div>
+        </div>
+
+        {/* Botões */}
+        <div className="flex gap-4 pt-4">
+          <button
+            type="button"
+            onClick={() => navigate("/home")}
+            className="flex-1 py-3 bg-gray-600 hover:bg-gray-500 rounded-lg font-semibold transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            disabled={!nome.trim() || musicasSelecionadas.length === 0}
+            className={`flex-1 py-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 ${
+              isEditMode
+                ? "bg-green-600 hover:bg-green-700 disabled:bg-gray-600"
+                : "bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600"
+            } disabled:cursor-not-allowed`}
+          >
+            {isEditMode ? <FaSave /> : <FaMusic />}
+            {isEditMode ? "Atualizar Playlist" : "Criar Playlist"}
+          </button>
+        </div>
       </form>
     </div>
   );
