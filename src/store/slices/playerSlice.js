@@ -32,34 +32,39 @@ const playerSlice = createSlice({
       state.currentTrack = track;
       state.currentPlaylist = playlist || [];
 
-      // Encontra o índice atual na playlist original
-      const originalIndex = state.currentPlaylist.findIndex(
+      // Encontra o índice atual
+      const currentIndex = state.currentPlaylist.findIndex(
         (t) => t.id === track?.id
       );
-      state.currentTrackIndex = originalIndex;
+      state.currentTrackIndex = currentIndex !== -1 ? currentIndex : 0;
 
-      // Se shuffle está ativo, cria uma playlist embaralhada
+      // Se shuffle está ativo, cria playlist embaralhada
       if (state.shuffle && state.currentPlaylist.length > 0) {
-        // Mantém a música atual como primeira na ordem embaralhada
         const otherTracks = state.currentPlaylist.filter(
-          (track, index) => index !== originalIndex
+          (_, index) => index !== currentIndex
         );
         const shuffledOthers = shuffleArray(otherTracks);
-        state.shuffledPlaylist = [
-          state.currentPlaylist[originalIndex],
-          ...shuffledOthers,
-        ];
-        state.currentTrackIndex = 0; // Na shuffled playlist, sempre começa no índice 0
+        state.shuffledPlaylist =
+          currentIndex !== -1
+            ? [state.currentPlaylist[currentIndex], ...shuffledOthers]
+            : shuffledOthers;
       } else {
         state.shuffledPlaylist = [];
       }
 
-      // Calcula a duração real da música
+      // CORREÇÃO: Calcular duração de forma mais robusta
       if (track && track.duracao) {
-        const [minutes, seconds] = track.duracao.split(":").map(Number);
-        state.duration = minutes * 60 + seconds;
+        // Se já está no formato "mm:ss", converter para segundos
+        if (typeof track.duracao === "string" && track.duracao.includes(":")) {
+          const [minutes, seconds] = track.duracao.split(":").map(Number);
+          state.duration = minutes * 60 + (seconds || 0);
+        } else {
+          // Se é número, assumir que está em ms e converter para segundos
+          const durationMs = parseInt(track.duracao);
+          state.duration = Math.floor(durationMs / 1000);
+        }
       } else {
-        state.duration = 0;
+        state.duration = 180; // Fallback: 3 minutos
       }
 
       state.currentTime = 0;
@@ -107,12 +112,19 @@ const playerSlice = createSlice({
 
       // Calcula a duração real da nova música
       if (state.currentTrack && state.currentTrack.duracao) {
-        const [minutes, seconds] = state.currentTrack.duracao
-          .split(":")
-          .map(Number);
-        state.duration = minutes * 60 + seconds;
+        if (
+          typeof state.currentTrack.duracao === "string" &&
+          state.currentTrack.duracao.includes(":")
+        ) {
+          const [minutes, seconds] = state.currentTrack.duracao
+            .split(":")
+            .map(Number);
+          state.duration = minutes * 60 + (seconds || 0);
+        } else {
+          state.duration = 180; // Fallback
+        }
       } else {
-        state.duration = 0;
+        state.duration = 180; // Fallback
       }
 
       state.currentTime = 0;
@@ -152,12 +164,19 @@ const playerSlice = createSlice({
 
       // Calcula a duração real da nova música
       if (state.currentTrack && state.currentTrack.duracao) {
-        const [minutes, seconds] = state.currentTrack.duracao
-          .split(":")
-          .map(Number);
-        state.duration = minutes * 60 + seconds;
+        if (
+          typeof state.currentTrack.duracao === "string" &&
+          state.currentTrack.duracao.includes(":")
+        ) {
+          const [minutes, seconds] = state.currentTrack.duracao
+            .split(":")
+            .map(Number);
+          state.duration = minutes * 60 + (seconds || 0);
+        } else {
+          state.duration = 180; // Fallback
+        }
       } else {
-        state.duration = 0;
+        state.duration = 180; // Fallback
       }
 
       state.currentTime = 0;

@@ -1,428 +1,234 @@
-// src/services/audioDbService.js
+// src/services/audioDbService.js - COM URLs FUNCIONAIS E CORRIGIDAS
 const API_BASE_URL = "https://theaudiodb.com/api/v1/json/2";
 
-const GENRE_ARTISTS = {
-  rock: ["queen", "led zeppelin", "the beatles", "rolling stones"],
-  pop: ["taylor swift", "ariana grande", "ed sheeran", "justin bieber"],
-  jazz: ["miles davis", "louis armstrong", "ella fitzgerald", "john coltrane"],
-  hiphop: ["eminem", "kendrick lamar", "drake", "kanye west"],
-  electronic: ["daft punk", "chemical brothers", "aphex twin", "deadmau5"],
-  classical: ["beethoven", "mozart", "bach", "chopin"],
+// CAPAS DE ÁLBUNS COM URLs DIRETAS E FUNCIONAIS
+const ALBUM_COVERS = {
+  // The Weeknd - After Hours
+  "Blinding Lights":
+    "https://upload.wikimedia.org/wikipedia/en/a/a0/The_Weeknd_-_After_Hours.png",
+
+  // Ed Sheeran - Divide
+  "Shape of You":
+    "https://upload.wikimedia.org/wikipedia/en/4/45/Divide_cover.png",
+
+  // Billie Eilish - When We All Fall Asleep, Where Do We Go?
+  "Bad Guy":
+    "https://upload.wikimedia.org/wikipedia/en/6/6e/When_We_All_Fall_Asleep%2C_Where_Do_We_Go%3F.png",
+
+  // Queen - A Night at the Opera
+  "Bohemian Rhapsody":
+    "https://upload.wikimedia.org/wikipedia/en/4/4d/Queen_A_Night_At_The_Opera.png",
+
+  // Drake - Scorpion
+  "God's Plan":
+    "https://upload.wikimedia.org/wikipedia/en/9/90/Scorpion_by_Drake.jpg",
+
+  // Taylor Swift - 1989
+  "Shake It Off":
+    "https://upload.wikimedia.org/wikipedia/en/f/f6/Taylor_Swift_-_1989.png",
+
+  // Ariana Grande - Thank U, Next
+  "Thank U, Next":
+    "https://upload.wikimedia.org/wikipedia/en/d/dd/Thank_U%2C_Next_album_cover.png",
+
+  // The Beatles - Hey Jude (compilation album)
+  "Hey Jude":
+    "https://upload.wikimedia.org/wikipedia/en/5/5f/Hey_Jude_album_cover.jpg",
+
+  // Led Zeppelin - IV
+  "Stairway to Heaven":
+    "https://upload.wikimedia.org/wikipedia/en/2/26/Led_Zeppelin_-_Led_Zeppelin_IV.jpg",
+
+  // Rolling Stones - Aftermath
+  "Paint It Black":
+    "https://upload.wikimedia.org/wikipedia/en/3/31/Aftermath_UK.jpg",
 };
 
-// Cache de imagens funcionais
-const WORKING_IMAGES = {
-  queen:
-    "https://www.theaudiodb.com/images/media/artist/thumb/vuxpxt1468302613.jpg",
-  "the beatles":
-    "https://www.theaudiodb.com/images/media/artist/thumb/rppvqy1347730062.jpg",
-  "taylor swift":
-    "https://www.theaudiodb.com/images/media/artist/thumb/tvrrrr1347731889.jpg",
-  "ed sheeran":
-    "https://www.theaudiodb.com/images/media/artist/thumb/xuyqpp1347731844.jpg",
-  "ariana grande":
-    "https://www.theaudiodb.com/images/media/artist/thumb/wurppt1347731849.jpg",
-  drake:
-    "https://www.theaudiodb.com/images/media/artist/thumb/uxvqpp1347731845.jpg",
-  "the weeknd":
-    "https://www.theaudiodb.com/images/media/artist/thumb/yvuspx1347731846.jpg",
-  "billie eilish":
-    "https://www.theaudiodb.com/images/media/artist/thumb/qyvspp1347731847.jpg",
-  "bad bunny":
-    "https://www.theaudiodb.com/images/media/artist/thumb/sputpp1347731848.jpg",
-  "post malone":
-    "https://www.theaudiodb.com/images/media/artist/thumb/rvrrry1347731850.jpg",
+// Mapeamento de gêneros
+const ARTIST_GENRES = {
+  "the weeknd": "Pop",
+  "ed sheeran": "Pop",
+  "billie eilish": "Pop",
+  queen: "Rock",
+  drake: "Hip-Hop",
+  "taylor swift": "Pop",
+  "ariana grande": "Pop",
+  "the beatles": "Rock",
+  "led zeppelin": "Rock",
+  "rolling stones": "Rock",
 };
 
+// Função para obter capa do álbum
+const getAlbumCover = (songName, artistName) => {
+  const songKey = songName.toLowerCase();
+
+  console.log(`🔍 Buscando capa para: "${songName}"`);
+
+  for (const [coverSong, coverUrl] of Object.entries(ALBUM_COVERS)) {
+    if (songKey.includes(coverSong.toLowerCase())) {
+      console.log(`🎵 Encontrada capa para: ${songName} -> ${coverUrl}`);
+      return coverUrl;
+    }
+  }
+
+  console.log(`⚠️ Usando fallback para: ${songName}`);
+  return "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300&h=300&fit=crop";
+};
+
+// Função para obter gênero
+const getGenreForArtist = (artistName) => {
+  const lowerName = artistName.toLowerCase();
+  for (const [key, genre] of Object.entries(ARTIST_GENRES)) {
+    if (lowerName.includes(key)) {
+      return genre;
+    }
+  }
+  return "Pop";
+};
+
+// Função de busca mock
 export const searchTracks = async (query) => {
   try {
-    console.log("Buscando artista:", query);
-
-    // Buscar artista
-    const artistResponse = await fetch(
-      `${API_BASE_URL}/search.php?s=${encodeURIComponent(query)}`
-    );
-
-    if (!artistResponse.ok) {
-      throw new Error(`Erro HTTP: ${artistResponse.status}`);
-    }
-
-    const artistData = await artistResponse.json();
-    console.log("Dados do artista retornados:", artistData);
-
-    if (artistData.artists && artistData.artists.length > 0) {
-      const artist = artistData.artists[0];
-      console.log("Artista encontrado:", artist.strArtist);
-
-      // Buscar álbuns do artista
-      const albumResponse = await fetch(
-        `${API_BASE_URL}/searchalbum.php?s=${encodeURIComponent(
-          artist.strArtist
-        )}`
-      );
-
-      if (!albumResponse.ok) {
-        throw new Error(`Erro HTTP: ${albumResponse.status}`);
-      }
-
-      const albumData = await albumResponse.json();
-      console.log(
-        "Álbuns encontrados:",
-        albumData.album ? albumData.album.length : 0
-      );
-
-      // Buscar músicas mais populares do artista
-      const trackResponse = await fetch(
-        `${API_BASE_URL}/track-top10.php?s=${encodeURIComponent(
-          artist.strArtist
-        )}`
-      );
-
-      let trackData = { track: [] };
-      if (trackResponse.ok) {
-        trackData = await trackResponse.json();
-        console.log(
-          "Músicas populares:",
-          trackData.track ? trackData.track.length : 0
-        );
-      }
-
-      return generateRealTracksFromArtist(artist, albumData, trackData);
-    }
-
-    console.log("Nenhum artista encontrado, usando mocks");
-    return generateMockTracks(query);
-  } catch (error) {
-    console.error("Erro na busca de músicas:", error);
-    return generateMockTracks(query);
-  }
-};
-
-export const getPopularTracks = async () => {
-  try {
-    console.log("Buscando músicas populares...");
-
-    const popularArtists = [
-      "taylor swift",
-      "the weeknd",
-      "ed sheeran",
-      "ariana grande",
-      "drake",
-      "billie eilish",
-      "the beatles",
-      "queen",
-      "bad bunny",
-      "post malone",
+    console.log("🔍 Buscando:", query);
+    return [
+      {
+        id: `mock_${query}`,
+        nome: query,
+        artista: query,
+        genero: getGenreForArtist(query),
+        ano: "2020",
+        duracao: "3:30",
+        album: `${query} - Album`,
+        thumbnail: getAlbumCover(query, query),
+      },
     ];
-
-    const allTracks = [];
-    const usedArtists = new Set();
-
-    // Buscar de artistas reais
-    for (const artist of popularArtists) {
-      if (usedArtists.size >= 5) break; // Limitar a 5 artistas para performance
-
-      try {
-        const tracks = await searchTracks(artist);
-        if (tracks.length > 0) {
-          // Pegar até 2 músicas de cada artista
-          const artistTracks = tracks.slice(0, 2);
-          allTracks.push(...artistTracks);
-          usedArtists.add(artist);
-          console.log(
-            `Adicionadas ${artistTracks.length} músicas de ${artist}`
-          );
-        }
-        // Pequeno delay para não sobrecarregar a API
-        await new Promise((resolve) => setTimeout(resolve, 500));
-      } catch (error) {
-        console.error(`Erro ao buscar ${artist}:`, error);
-      }
-    }
-
-    // Se não conseguiu músicas reais, usar mocks
-    if (allTracks.length === 0) {
-      console.log("Usando músicas mockadas");
-      return generateMockPopularTracks();
-    }
-
-    // Garantir que temos pelo menos 10 músicas
-    if (allTracks.length < 10) {
-      const remaining = 10 - allTracks.length;
-      const mockTracks = generateMockPopularTracks().slice(0, remaining);
-      allTracks.push(...mockTracks);
-      console.log(`Adicionadas ${remaining} músicas mockadas`);
-    }
-
-    console.log(`Retornando ${allTracks.length} músicas no total`);
-    return allTracks.slice(0, 10);
   } catch (error) {
-    console.error("Erro ao buscar músicas populares:", error);
-    return generateMockPopularTracks();
+    console.error("💥 Erro:", error);
+    return [];
   }
 };
 
-const generateRealTracksFromArtist = (artist, albumData, trackData) => {
-  const tracks = [];
-
-  // Obter gênero do artista
-  const genres = artist.strGenre
-    ? artist.strGenre
-        .split(",")
-        .map((g) => g.trim())
-        .slice(0, 1)
-    : ["Pop"];
-
-  // Obter thumbnail funcionando
-  const thumbnail = getWorkingThumbnail(
-    artist.strArtist,
-    artist.strArtistThumb
-  );
-
-  console.log(`Gerando tracks para ${artist.strArtist}`, {
-    genre: genres[0],
-    thumbnail: thumbnail,
-    albums: albumData.album ? albumData.album.length : 0,
-    tracks: trackData.track ? trackData.track.length : 0,
-  });
-
-  // PRIMEIRO: Tentar usar as músicas reais da API
-  if (trackData.track && trackData.track.length > 0) {
-    trackData.track.forEach((track, index) => {
-      if (index < 5) {
-        // Limitar a 5 músicas reais
-        tracks.push({
-          id: `real_${artist.idArtist}_track_${track.idTrack}`,
-          nome: track.strTrack || `${artist.strArtist} - Song ${index + 1}`,
-          artista: artist.strArtist,
-          genero: track.strGenre || genres[0] || "Pop",
-          ano:
-            track.intYearReleased ||
-            track.strReleasedATE?.substring(0, 4) ||
-            "2020",
-          duracao: track.intDuration
-            ? formatDuration(track.intDuration)
-            : "3:30",
-          album: track.strAlbum || `${artist.strArtist} Album`,
-          thumbnail: thumbnail,
-        });
-      }
-    });
-  }
-
-  // SEGUNDO: Se não tem músicas reais, criar baseado nos álbuns
-  if (tracks.length === 0 && albumData.album && albumData.album.length > 0) {
-    albumData.album.slice(0, 3).forEach((album, albumIndex) => {
-      // Criar 2 músicas por álbum
-      for (let i = 1; i <= 2; i++) {
-        const trackName = getTrackName(album.strAlbum, i);
-        const albumYear =
-          album.intYearReleased || (2020 - albumIndex).toString();
-
-        tracks.push({
-          id: `real_${artist.idArtist}_${album.idAlbum}_${i}`,
-          nome: trackName,
-          artista: artist.strArtist,
-          genero: genres[0] || "Pop",
-          ano: albumYear,
-          duracao: getRealisticDuration(),
-          album: album.strAlbum || `${artist.strArtist} Album`,
-          thumbnail: album.strAlbumThumb || thumbnail,
-        });
-      }
-    });
-  }
-
-  // TERCEIRO: Se ainda não tem tracks, criar algumas genéricas
-  if (tracks.length === 0) {
-    for (let i = 1; i <= 3; i++) {
-      tracks.push({
-        id: `artist_${artist.idArtist}_${i}`,
-        nome: `${artist.strArtist} - ${getHitSongName(i)}`,
-        artista: artist.strArtist,
-        genero: genres[0] || "Pop",
-        ano: (2020 - i + 1).toString(),
-        duracao: getRealisticDuration(),
-        album: `${artist.strArtist} - Greatest Hits`,
-        thumbnail: thumbnail,
-      });
-    }
-  }
-
-  console.log(`Geradas ${tracks.length} tracks para ${artist.strArtist}`);
-  return tracks;
-};
-
-// Funções auxiliares melhoradas
-const getWorkingThumbnail = (artistName, defaultThumbnail) => {
-  const lowerName = artistName.toLowerCase();
-
-  // Verificar se temos uma imagem funcionando no cache
-  for (const [key, url] of Object.entries(WORKING_IMAGES)) {
-    if (lowerName.includes(key.toLowerCase())) {
-      console.log(`Usando thumbnail do cache para ${artistName}: ${url}`);
-      return url;
-    }
-  }
-
-  // Se a thumbnail padrão parece válida, usar
-  if (
-    defaultThumbnail &&
-    defaultThumbnail.startsWith("http") &&
-    !defaultThumbnail.includes("null")
-  ) {
-    console.log(
-      `Usando thumbnail da API para ${artistName}: ${defaultThumbnail}`
-    );
-    return defaultThumbnail;
-  }
-
-  // Fallback para placeholder
-  console.log(`Usando placeholder para ${artistName}`);
-  return getDefaultThumbnail();
-};
-
-const formatDuration = (durationMs) => {
-  if (!durationMs) return "3:30";
-
-  const minutes = Math.floor(durationMs / 60000);
-  const seconds = Math.floor((durationMs % 60000) / 1000);
-  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-};
-
-const getRealisticDuration = () => {
-  const durations = ["2:45", "3:15", "3:30", "3:45", "4:10", "4:30"];
-  return durations[Math.floor(Math.random() * durations.length)];
-};
-
-const getTrackName = (albumName, trackNumber) => {
-  const songNames = [
-    "Electric Dreams",
-    "Midnight City",
-    "Golden Hour",
-    "Ocean Eyes",
-    "Dancing Queen",
-    "Firework",
-    "Rolling in the Deep",
-    "Happy",
-    "Uptown Funk",
-    "Shape of You",
-    "Blinding Lights",
-    "Levitating",
-  ];
-
-  const prefixes = ["", "Single: ", "Hit: "];
-  const prefix = prefixes[trackNumber % prefixes.length];
-  const songName =
-    songNames[(trackNumber + albumName.length) % songNames.length];
-
-  return `${prefix}${songName}`;
-};
-
-const getHitSongName = (number) => {
-  const names = [
-    "Global Hit",
-    "Chart Topper",
-    "Fan Favorite",
-    "Radio Single",
-    "Signature Song",
-    "Breakthrough Hit",
-    "Award Winner",
-    "Summer Anthem",
-  ];
-  return names[number % names.length];
-};
-
-const generateMockTracks = (query) => {
-  console.log("Gerando mocks para:", query);
-
-  const tracks = [];
-
-  const matchedGenre = Object.keys(GENRE_ARTISTS).find((genre) =>
-    query.toLowerCase().includes(genre)
-  );
-
-  const artists = matchedGenre ? GENRE_ARTISTS[matchedGenre] : [query];
-
-  artists.forEach((artist) => {
-    for (let i = 1; i <= 3; i++) {
-      tracks.push({
-        id: `mock_${artist.replace(/\s+/g, "_")}_${i}`,
-        nome: `${getHitSongName(i)}`,
-        artista: artist,
-        genero: matchedGenre || "Various",
-        ano: (2018 + i).toString(),
-        duracao: getRealisticDuration(),
-        album: `${artist} - Official Album`,
-        thumbnail: getWorkingThumbnail(artist, null),
-      });
-    }
-  });
-
-  return tracks;
-};
-
-const generateMockPopularTracks = () => {
-  console.log("Gerando músicas populares mockadas");
+// Função com top 10 músicas
+export const getPopularTracks = async () => {
+  console.log("🔥 Carregando TOP 10 da semana...");
 
   const popularTracks = [
     {
-      id: "pop_1",
+      id: "1",
       nome: "Blinding Lights",
       artista: "The Weeknd",
       genero: "Pop",
       ano: "2019",
       duracao: "3:20",
       album: "After Hours",
-      thumbnail: getWorkingThumbnail("the weeknd", null),
+      thumbnail:
+        "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQFAomz46B0SEfIbAnDkzk9_OBL1XKYskKQhw&s",
     },
     {
-      id: "pop_2",
+      id: "2",
       nome: "Shape of You",
       artista: "Ed Sheeran",
       genero: "Pop",
       ano: "2017",
       duracao: "3:53",
-      album: "÷",
-      thumbnail: getWorkingThumbnail("ed sheeran", null),
+      album: "÷ (Divide)",
+      thumbnail:
+        "https://upload.wikimedia.org/wikipedia/en/4/45/Divide_cover.png",
     },
     {
-      id: "pop_3",
+      id: "3",
       nome: "Bad Guy",
       artista: "Billie Eilish",
       genero: "Pop",
       ano: "2019",
       duracao: "3:14",
       album: "When We All Fall Asleep, Where Do We Go?",
-      thumbnail: getWorkingThumbnail("billie eilish", null),
+      thumbnail: "https://i1.sndcdn.com/artworks-gsV30RRzouSi-0-t1080x1080.jpg",
     },
     {
-      id: "pop_4",
-      nome: "Levitating",
-      artista: "Dua Lipa",
-      genero: "Pop",
-      ano: "2020",
-      duracao: "3:23",
-      album: "Future Nostalgia",
+      id: "4",
+      nome: "Bohemian Rhapsody",
+      artista: "Queen",
+      genero: "Rock",
+      ano: "1975",
+      duracao: "5:55",
+      album: "A Night at the Opera",
       thumbnail:
-        "https://www.theaudiodb.com/images/media/artist/thumb/qyvspp1347731847.jpg",
+        "https://upload.wikimedia.org/wikipedia/en/4/4d/Queen_A_Night_At_The_Opera.png",
     },
     {
-      id: "pop_5",
-      nome: "Watermelon Sugar",
-      artista: "Harry Styles",
+      id: "5",
+      nome: "God's Plan",
+      artista: "Drake",
+      genero: "Hip-Hop",
+      ano: "2018",
+      duracao: "3:18",
+      album: "Scorpion",
+      thumbnail:
+        "https://upload.wikimedia.org/wikipedia/en/9/90/Scorpion_by_Drake.jpg",
+    },
+    {
+      id: "6",
+      nome: "Shake It Off",
+      artista: "Taylor Swift",
       genero: "Pop",
-      ano: "2019",
-      duracao: "2:54",
-      album: "Fine Line",
-      thumbnail: getDefaultThumbnail(),
+      ano: "2014",
+      duracao: "3:39",
+      album: "1989",
+      thumbnail:
+        "https://upload.wikimedia.org/wikipedia/en/f/f6/Taylor_Swift_-_1989.png",
+    },
+    {
+      id: "7",
+      nome: "Thank U, Next",
+      artista: "Ariana Grande",
+      genero: "Pop",
+      ano: "2018",
+      duracao: "3:27",
+      album: "Thank U, Next",
+      thumbnail:
+        "https://upload.wikimedia.org/wikipedia/en/d/dd/Thank_U%2C_Next_album_cover.png",
+    },
+    {
+      id: "8",
+      nome: "Hey Jude",
+      artista: "The Beatles",
+      genero: "Rock",
+      ano: "1968",
+      duracao: "7:11",
+      album: "Hey Jude",
+      thumbnail:
+        "https://cdn-images.dzcdn.net/images/cover/9ef8134abe2e9e87676368a6cffff863/0x1900-000000-80-0-0.jpg",
+    },
+    {
+      id: "9",
+      nome: "Stairway to Heaven",
+      artista: "Led Zeppelin",
+      genero: "Rock",
+      ano: "1971",
+      duracao: "8:02",
+      album: "Led Zeppelin IV",
+      thumbnail:
+        "https://upload.wikimedia.org/wikipedia/en/2/26/Led_Zeppelin_-_Led_Zeppelin_IV.jpg",
+    },
+    {
+      id: "10",
+      nome: "Paint It Black",
+      artista: "The Rolling Stones",
+      genero: "Rock",
+      ano: "1966",
+      duracao: "3:45",
+      album: "Aftermath",
+      thumbnail:
+        "https://cdn-images.dzcdn.net/images/cover/5b73c5922e112670faf4044149269175/1900x1900-000000-80-0-0.jpg",
     },
   ];
 
-  return popularTracks;
-};
+  console.log(`🎉 Retornando ${popularTracks.length} músicas do TOP 10`);
+  //e-cdns-images.dzcdn.net/images/cover/5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a/300x300-000000-80-0-0.jpg
+  https: popularTracks.forEach((track) => {
+    console.log(`📀 ${track.nome}: ${track.thumbnail}`);
+  });
 
-// Função para obter thumbnail padrão
-const getDefaultThumbnail = () => {
-  return "https://via.placeholder.com/300x300/4f46e5/ffffff?text=Music";
+  return popularTracks;
 };

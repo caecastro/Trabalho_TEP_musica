@@ -52,7 +52,6 @@ function Controller({ onSearch }) {
   // Fechar menu ao clicar fora
   useEffect(() => {
     const handleClickOutside = (event) => {
-      // Se clicou no botão de playlist, não fecha (o toggle vai lidar com isso)
       if (
         playlistButtonRef.current &&
         playlistButtonRef.current.contains(event.target)
@@ -60,7 +59,6 @@ function Controller({ onSearch }) {
         return;
       }
 
-      // Se clicou fora do menu e do botão, fecha o menu
       if (
         playlistsRef.current &&
         !playlistsRef.current.contains(event.target)
@@ -81,30 +79,25 @@ function Controller({ onSearch }) {
   // Efeito para controlar o avanço do tempo quando a música está tocando
   useEffect(() => {
     if (isPlaying && currentTrack) {
-      // Limpa qualquer intervalo existente
       if (progressIntervalRef.current) {
         clearInterval(progressIntervalRef.current);
       }
 
-      // Inicia um novo intervalo para atualizar o tempo a cada segundo
       progressIntervalRef.current = setInterval(() => {
         const newTime = currentTime + 1;
         dispatch(setCurrentTime(newTime));
 
-        // Se chegou ao final da música, vai para a próxima
         if (newTime >= duration - 1) {
           dispatch(nextTrack());
         }
       }, 1000);
     } else {
-      // Pausa o intervalo quando a música não está tocando
       if (progressIntervalRef.current) {
         clearInterval(progressIntervalRef.current);
         progressIntervalRef.current = null;
       }
     }
 
-    // Limpeza do intervalo quando o componente desmontar ou dependências mudarem
     return () => {
       if (progressIntervalRef.current) {
         clearInterval(progressIntervalRef.current);
@@ -116,9 +109,17 @@ function Controller({ onSearch }) {
   useEffect(() => {
     if (currentTrack && currentTrack.duracao) {
       // Converte a duração do formato "mm:ss" para segundos
-      const [minutes, seconds] = currentTrack.duracao.split(":").map(Number);
-      const realDuration = minutes * 60 + seconds;
-      dispatch(setDuration(realDuration));
+      if (
+        typeof currentTrack.duracao === "string" &&
+        currentTrack.duracao.includes(":")
+      ) {
+        const [minutes, seconds] = currentTrack.duracao.split(":").map(Number);
+        const realDuration = minutes * 60 + seconds;
+        dispatch(setDuration(realDuration));
+      } else {
+        // Fallback para 3 minutos
+        dispatch(setDuration(180));
+      }
     }
   }, [currentTrack, dispatch]);
 
@@ -140,7 +141,6 @@ function Controller({ onSearch }) {
 
   const handleSelectPlaylist = (playlist) => {
     dispatch(setCurrentPlaylist(playlist));
-    // Atualiza o player com a nova playlist
     if (playlist.musicas?.length > 0) {
       dispatch(
         setCurrentTrack({
@@ -194,7 +194,6 @@ function Controller({ onSearch }) {
     dispatch(toggleShuffle());
   };
 
-  // Função para clicar na barra de progresso e buscar um tempo específico
   const handleProgressClick = (e) => {
     if (!duration || !currentTrack) return;
 
@@ -220,9 +219,29 @@ function Controller({ onSearch }) {
     (playlist) => playlist.usuarioId === user?.id || playlist.isDefault
   );
 
-  // Função toggle para o menu de playlists
   const togglePlaylists = () => {
     setShowPlaylists((prev) => !prev);
+  };
+
+  // Função MELHORADA para verificar se a imagem existe
+  const handleImageError = (e) => {
+    console.log("❌ Erro ao carregar imagem no controller:", e.target.src);
+
+    const fallbacks = [
+      "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300&h=300&fit=crop",
+      "/src/assets/react.svg",
+    ];
+
+    const currentSrc = e.target.src;
+    let currentIndex = fallbacks.findIndex((fallback) =>
+      currentSrc.includes(fallback)
+    );
+
+    if (currentIndex === -1) {
+      e.target.src = fallbacks[0];
+    } else if (currentIndex < fallbacks.length - 1) {
+      e.target.src = fallbacks[currentIndex + 1];
+    }
   };
 
   return (
@@ -271,9 +290,7 @@ function Controller({ onSearch }) {
                 src={currentTrack.thumbnail}
                 alt={currentTrack.nome}
                 className="w-8 h-8 object-cover rounded"
-                onError={(e) => {
-                  e.target.src = "/src/assets/react.svg";
-                }}
+                onError={handleImageError}
               />
               <div className="text-xs max-w-32">
                 <div className="font-semibold truncate">
@@ -361,10 +378,9 @@ function Controller({ onSearch }) {
         } w-full max-w-4xl`}
       >
         <div className="bg-gray-700 rounded-lg shadow-md p-4 flex flex-col gap-3">
-          {/* Header do submenu - SEM BOTÃO X */}
+          {/* Header do submenu */}
           <div className="flex justify-between items-center">
             <h3 className="text-lg font-semibold">Suas Playlists</h3>
-            {/* Botão X removido conforme solicitado */}
           </div>
 
           {/* Lista de Playlists */}

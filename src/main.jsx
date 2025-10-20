@@ -5,7 +5,6 @@ import { store } from "./store";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import TelaInicial from "./Tela_inicial.jsx";
 import Home from "./pages/Home.jsx";
-import Musicas from "./pages/Musicas.jsx";
 import CriadorPlaylists from "./components/assets/CriadorPlaylists.jsx";
 import CriadorUser from "./components/assets/CriadorUser.jsx";
 import PrivateRoute from "./components/views/PrivateRoute.jsx";
@@ -24,14 +23,15 @@ const router = createBrowserRouter([
       </PrivateRoute>
     ),
   },
-  {
-    path: "/musicas/:id",
-    element: (
-      <PrivateRoute>
-        <Musicas />
-      </PrivateRoute>
-    ),
-  },
+  // REMOVA esta rota ↓
+  // {
+  //   path: "/musicas/:id",
+  //   element: (
+  //     <PrivateRoute>
+  //       <Musicas />
+  //     </PrivateRoute>
+  //   ),
+  // },
   {
     path: "/criador",
     element: (
@@ -53,7 +53,7 @@ const router = createBrowserRouter([
     element: <CriadorUser />,
   },
   {
-    path: "/editar-user", // ← NOVA ROTA PARA EDITAR USUÁRIO
+    path: "/editar-user",
     element: (
       <PrivateRoute>
         <CriadorUser />

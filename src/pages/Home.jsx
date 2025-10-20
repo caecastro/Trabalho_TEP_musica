@@ -4,6 +4,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { fetchPopularTracks } from "../store/slices/musicSlice";
 import { populateDefaultPlaylist } from "../store/slices/playlistsSlice";
 import Controller from "../components/assets/Controller";
+import Musicas from "../components/assets/Musicas";
 import { getFromLocalStorage } from "../utils/localStorage";
 
 function Home() {
@@ -11,6 +12,7 @@ function Home() {
   const dispatch = useDispatch();
   const [searchTerm, setSearchTerm] = useState("");
   const [currentUser, setCurrentUser] = useState(null);
+  const [selectedMusica, setSelectedMusica] = useState(null);
 
   const { popularTracks, loading, error } = useSelector((state) => state.music);
   const { currentPlaylist } = useSelector((state) => state.playlists);
@@ -19,12 +21,11 @@ function Home() {
   useEffect(() => {
     dispatch(fetchPopularTracks());
 
-    // Buscar usuário do localStorage na chave "usuarios" - OPÇÃO 1 (usuário marcado como logado)
+    // Buscar usuário do localStorage
     const usuariosFromStorage = getFromLocalStorage("usuarios");
     let usuarioLogado = null;
 
     if (usuariosFromStorage && Array.isArray(usuariosFromStorage)) {
-      // Encontrar o usuário marcado como logado
       usuarioLogado = usuariosFromStorage.find(
         (usuario) =>
           usuario.logado === true ||
@@ -39,7 +40,6 @@ function Home() {
     } else if (user) {
       setCurrentUser(user);
     } else if (usuariosFromStorage && usuariosFromStorage.length > 0) {
-      // Fallback: se não encontrou usuário logado, pega o último
       setCurrentUser(usuariosFromStorage[usuariosFromStorage.length - 1]);
     }
   }, [dispatch, user]);
@@ -51,12 +51,65 @@ function Home() {
     }
   }, [popularTracks, dispatch]);
 
-  const handleClickMusica = (musicaId) => {
-    navigate(`/musicas/${musicaId}`);
+  // DEBUG: Log das músicas carregadas
+  useEffect(() => {
+    console.log("🎵 Músicas carregadas:", popularTracks);
+    if (popularTracks.length > 0) {
+      console.log("📋 Primeira música:", popularTracks[0]);
+    }
+  }, [popularTracks]);
+
+  const handleClickMusica = (musica) => {
+    setSelectedMusica(musica);
+  };
+
+  const handleCloseMusica = () => {
+    setSelectedMusica(null);
   };
 
   const handleSearch = (term) => {
     setSearchTerm(term.toLowerCase());
+  };
+
+  // Função MELHORADA para verificar se a imagem existe
+  const handleImageError = (e) => {
+    console.log("❌ Erro ao carregar imagem:", e.target.src);
+
+    // Fallbacks em ordem de prioridade
+    const fallbacks = [
+      "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300&h=300&fit=crop",
+      "https://via.placeholder.com/300x300/4f46e5/ffffff?text=Music",
+      "/src/assets/react.svg",
+    ];
+
+    const currentSrc = e.target.src;
+
+    // Encontrar o índice do fallback atual
+    let currentIndex = fallbacks.findIndex((fallback) =>
+      currentSrc.includes(fallback)
+    );
+
+    if (currentIndex === -1) {
+      // Se não está usando fallback ainda, usar o primeiro
+      e.target.src = fallbacks[0];
+    } else if (currentIndex < fallbacks.length - 1) {
+      // Tentar próximo fallback
+      e.target.src = fallbacks[currentIndex + 1];
+    }
+    // Se já está no último fallback, não fazer nada
+  };
+
+  // Função para carregar imagem com fallback
+  const loadImageWithFallback = (src, alt) => {
+    return (
+      <img
+        src={src}
+        alt={alt}
+        className="w-full h-full object-cover"
+        onError={handleImageError}
+        loading="lazy"
+      />
+    );
   };
 
   // Usar músicas da playlist atual ou das populares
@@ -74,12 +127,6 @@ function Home() {
 
   const musicasParaMostrar = searchTerm ? musicasFiltradas : musicas;
 
-  // Função para verificar se a imagem existe - COM FALLBACK
-  const handleImageError = (e) => {
-    console.log("Erro ao carregar imagem:", e.target.src);
-    e.target.src = "/src/assets/react.svg";
-  };
-
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white">
@@ -92,6 +139,12 @@ function Home() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white">
         <div className="text-2xl text-red-500">Erro: {error}</div>
+        <button
+          onClick={() => dispatch(fetchPopularTracks())}
+          className="mt-4 bg-blue-500 px-4 py-2 rounded hover:bg-blue-600"
+        >
+          Tentar Novamente
+        </button>
       </div>
     );
   }
@@ -108,7 +161,7 @@ function Home() {
           <h1 className="text-3xl font-semibold text-blue-500">React Music</h1>
         </div>
 
-        {/* Mostrar usuário logado - AGORA CLICÁVEL */}
+        {/* Mostrar usuário logado */}
         {currentUser && (
           <button
             onClick={() => navigate("/editar-user")}
@@ -135,20 +188,15 @@ function Home() {
       </div>
 
       <main className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 px-4 w-full max-w-6xl mb-8">
-        {musicasParaMostrar.slice(0, 10).map((musica, index) => (
+        {musicasParaMostrar.slice(0, 10).map((musica) => (
           <div
             key={musica.id}
             className="bg-white rounded-lg shadow-md overflow-hidden hover:scale-105 transition-transform cursor-pointer"
-            onClick={() => handleClickMusica(musica.id)}
+            onClick={() => handleClickMusica(musica)}
           >
-            {/* Thumbnail com fallback */}
+            {/* Thumbnail com fallback MELHORADO */}
             <div className="h-32 bg-gray-200 relative">
-              <img
-                src={musica.thumbnail}
-                alt={musica.nome}
-                className="w-full h-full object-cover"
-                onError={handleImageError}
-              />
+              {loadImageWithFallback(musica.thumbnail, musica.nome)}
             </div>
 
             {/* Informações da música */}
@@ -189,6 +237,11 @@ function Home() {
       <div className="fixed bottom-0 left-0 right-0 bg-gray-900 pt-4 pb-6">
         <Controller onSearch={handleSearch} />
       </div>
+
+      {/* Modal Musicas */}
+      {selectedMusica && (
+        <Musicas musica={selectedMusica} onClose={handleCloseMusica} />
+      )}
     </div>
   );
 }
