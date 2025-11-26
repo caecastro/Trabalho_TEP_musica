@@ -1,3 +1,4 @@
+// src/store/slices/authSlice.js
 import { createSlice } from "@reduxjs/toolkit";
 import {
   saveToSessionStorage,
@@ -9,6 +10,7 @@ import {
   saveToLocalStorage,
 } from "../../utils/localStorage";
 
+// ===== INITIAL STATE =====
 const initialState = {
   user: getFromSessionStorage("user") || null,
   isAuthenticated: !!getFromSessionStorage("user"),
@@ -17,6 +19,21 @@ const initialState = {
   lastPlaylist: getFromSessionStorage("lastPlaylist") || null,
 };
 
+// ===== VALIDAÇÕES =====
+const validateEmail = (email) => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+};
+
+const validatePassword = (password) => {
+  return password.length >= 6;
+};
+
+const findUserByEmail = (email, usuarios) => {
+  return usuarios.find((user) => user.email === email);
+};
+
+// ===== SLICE =====
 const authSlice = createSlice({
   name: "auth",
   initialState,
@@ -25,6 +42,7 @@ const authSlice = createSlice({
       state.loading = true;
       state.error = null;
     },
+
     loginSuccess: (state, action) => {
       state.loading = false;
       state.isAuthenticated = true;
@@ -33,21 +51,25 @@ const authSlice = createSlice({
       saveToSessionStorage("user", action.payload);
       saveToSessionStorage("lastLogin", new Date().toISOString());
     },
+
     loginFailure: (state, action) => {
       state.loading = false;
       state.isAuthenticated = false;
       state.user = null;
       state.error = action.payload;
     },
+
     logout: (state) => {
       state.isAuthenticated = false;
       state.user = null;
       state.lastPlaylist = null;
+
+      // Limpar session storage
       removeFromSessionStorage("user");
       removeFromSessionStorage("lastPlaylist");
       removeFromSessionStorage("lastLogin");
 
-      // Remover marcação de usuário logado no localStorage
+      // Marcar todos os usuários como não logados no localStorage
       const usuarios = getFromLocalStorage("usuarios") || [];
       const usuariosAtualizados = usuarios.map((usuario) => ({
         ...usuario,
@@ -55,19 +77,22 @@ const authSlice = createSlice({
       }));
       saveToLocalStorage("usuarios", usuariosAtualizados);
     },
+
     setLastPlaylist: (state, action) => {
       state.lastPlaylist = action.payload;
       saveToSessionStorage("lastPlaylist", action.payload);
     },
+
     clearError: (state) => {
       state.error = null;
     },
+
     setCurrentUser: (state, action) => {
       state.user = action.payload;
       state.isAuthenticated = true;
       saveToSessionStorage("user", action.payload);
     },
-    // NOVO: Reducer específico para resetar a última playlist ao login
+
     resetPlaylistOnLogin: (state) => {
       state.lastPlaylist = null;
       removeFromSessionStorage("lastPlaylist");
@@ -75,43 +100,29 @@ const authSlice = createSlice({
   },
 });
 
-export const {
-  loginStart,
-  loginSuccess,
-  loginFailure,
-  logout,
-  setLastPlaylist,
-  clearError,
-  setCurrentUser,
-  resetPlaylistOnLogin, // NOVO: Exportar a nova ação
-} = authSlice.actions;
-
-// Thunk para login - ATUALIZADO
+// ===== THUNKS =====
 export const login = (credentials) => (dispatch) => {
   const { email, password } = credentials;
-  dispatch(loginStart());
+  dispatch(authSlice.actions.loginStart());
 
-  // Validação do email
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(email)) {
-    dispatch(loginFailure("Email inválido"));
+  // Validações
+  if (!validateEmail(email)) {
+    dispatch(authSlice.actions.loginFailure("Email inválido"));
     return;
   }
 
-  // Validação da senha
-  if (password.length < 6) {
-    dispatch(loginFailure("Senha deve ter pelo menos 6 caracteres"));
+  if (!validatePassword(password)) {
+    dispatch(
+      authSlice.actions.loginFailure("Senha deve ter pelo menos 6 caracteres")
+    );
     return;
   }
 
-  // Buscar usuários no localStorage
   const usuarios = getFromLocalStorage("usuarios") || [];
-
-  // Verificar se existe usuário com este email
-  const usuarioEncontrado = usuarios.find((user) => user.email === email);
+  const usuarioEncontrado = findUserByEmail(email, usuarios);
 
   if (usuarioEncontrado) {
-    // Verificar senha
+    // Login existente
     if (usuarioEncontrado.senha === password) {
       const user = {
         id: usuarioEncontrado.id,
@@ -120,37 +131,34 @@ export const login = (credentials) => (dispatch) => {
         lastLogin: new Date().toISOString(),
       };
 
-      // Marcar este usuário como logado no localStorage
+      // Atualizar estado de login no localStorage
       const usuariosAtualizados = usuarios.map((usuario) => ({
         ...usuario,
         logado: usuario.id === usuarioEncontrado.id,
       }));
       saveToLocalStorage("usuarios", usuariosAtualizados);
 
-      // NOVO: Resetar a última playlist antes do login success
-      dispatch(resetPlaylistOnLogin());
-      dispatch(loginSuccess(user));
+      dispatch(authSlice.actions.resetPlaylistOnLogin());
+      dispatch(authSlice.actions.loginSuccess(user));
     } else {
-      dispatch(loginFailure("Senha incorreta"));
+      dispatch(authSlice.actions.loginFailure("Senha incorreta"));
     }
   } else {
-    // Se não encontrar, criar novo usuário automaticamente
+    // Criar novo usuário
     const novoUsuario = {
       id: Date.now().toString(),
-      email: email,
+      email,
       nome: email.split("@")[0],
       senha: password,
       createdAt: new Date().toISOString(),
       logado: true,
     };
 
-    // Adicionar novo usuário ao array e marcar todos os outros como não logados
     const usuariosAtualizados = usuarios.map((usuario) => ({
       ...usuario,
       logado: false,
     }));
     usuariosAtualizados.push(novoUsuario);
-
     saveToLocalStorage("usuarios", usuariosAtualizados);
 
     const user = {
@@ -160,51 +168,42 @@ export const login = (credentials) => (dispatch) => {
       lastLogin: new Date().toISOString(),
     };
 
-    // NOVO: Resetar a última playlist antes do login success
-    dispatch(resetPlaylistOnLogin());
-    dispatch(loginSuccess(user));
-    console.log("Novo usuário criado automaticamente:", novoUsuario);
+    dispatch(authSlice.actions.resetPlaylistOnLogin());
+    dispatch(authSlice.actions.loginSuccess(user));
   }
 };
 
-// Thunk para registro de usuário - ATUALIZADO
 export const registerUser = (userData) => (dispatch) => {
   const { email, password, nome } = userData;
 
-  // Validação do email
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(email)) {
-    dispatch(loginFailure("Email inválido"));
+  if (!validateEmail(email)) {
+    dispatch(authSlice.actions.loginFailure("Email inválido"));
     return;
   }
 
-  // Validação da senha
-  if (password.length < 6) {
-    dispatch(loginFailure("Senha deve ter pelo menos 6 caracteres"));
+  if (!validatePassword(password)) {
+    dispatch(
+      authSlice.actions.loginFailure("Senha deve ter pelo menos 6 caracteres")
+    );
     return;
   }
 
-  // Buscar usuários existentes
   const usuarios = getFromLocalStorage("usuarios") || [];
 
-  // Verificar se email já existe
-  const usuarioExistente = usuarios.find((user) => user.email === email);
-  if (usuarioExistente) {
-    dispatch(loginFailure("Email já cadastrado"));
+  if (findUserByEmail(email, usuarios)) {
+    dispatch(authSlice.actions.loginFailure("Email já cadastrado"));
     return;
   }
 
-  // Criar novo usuário
   const novoUsuario = {
     id: Date.now().toString(),
-    email: email,
+    email,
     nome: nome || email.split("@")[0],
     senha: password,
     createdAt: new Date().toISOString(),
     logado: true,
   };
 
-  // Salvar no localStorage marcando todos os outros como não logados
   const usuariosAtualizados = usuarios.map((usuario) => ({
     ...usuario,
     logado: false,
@@ -219,9 +218,20 @@ export const registerUser = (userData) => (dispatch) => {
     lastLogin: new Date().toISOString(),
   };
 
-  // NOVO: Resetar a última playlist antes do login success
-  dispatch(resetPlaylistOnLogin());
-  dispatch(loginSuccess(user));
+  dispatch(authSlice.actions.resetPlaylistOnLogin());
+  dispatch(authSlice.actions.loginSuccess(user));
 };
+
+// ===== EXPORTS =====
+export const {
+  loginStart,
+  loginSuccess,
+  loginFailure,
+  logout,
+  setLastPlaylist,
+  clearError,
+  setCurrentUser,
+  resetPlaylistOnLogin,
+} = authSlice.actions;
 
 export default authSlice.reducer;

@@ -2,6 +2,10 @@
 import { useSelector } from "react-redux";
 import { Navigate } from "react-router-dom";
 
+/**
+ * Componente para proteger rotas que requerem autenticação
+ * Redireciona para a página inicial se o usuário não estiver autenticado
+ */
 const PrivateRoute = ({ children }) => {
   const { isAuthenticated } = useSelector((state) => state.auth);
 

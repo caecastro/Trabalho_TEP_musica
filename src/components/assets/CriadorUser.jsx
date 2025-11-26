@@ -9,166 +9,214 @@ import {
 import { setCurrentUser } from "../../store/slices/authSlice";
 
 function CriadorUser() {
+  // ===== HOOKS E STATE =====
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const { user } = useSelector((state) => state.auth);
+
+  // State local
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [confirmarSenha, setConfirmarSenha] = useState("");
   const [erro, setErro] = useState("");
   const [modoEdicao, setModoEdicao] = useState(false);
-  const navigate = useNavigate();
-  const dispatch = useDispatch();
 
-  const { user } = useSelector((state) => state.auth);
+  // ===== CONSTANTES DERIVADAS =====
+  const senhaOpcional = modoEdicao;
+  const formularioValido = validarCamposObrigatorios();
 
-  // Verificar se está no modo edição (usuário logado)
+  // ===== EFEITOS =====
+
+  // Carregar dados do usuário no modo edição
   useEffect(() => {
     if (user) {
       setModoEdicao(true);
-      // Buscar dados completos do usuário
-      const usuarios = getFromLocalStorage("usuarios") || [];
-      const usuarioCompleto = usuarios.find((u) => u.id === user.id);
-
-      if (usuarioCompleto) {
-        setNome(usuarioCompleto.nome || user.nome || "");
-        setEmail(usuarioCompleto.email || user.email || "");
-      } else {
-        // Fallback para dados do Redux
-        setNome(user.nome || "");
-        setEmail(user.email || "");
-      }
+      carregarDadosUsuario();
     }
   }, [user]);
+
+  // ===== FUNÇÕES AUXILIARES =====
+
+  function validarCamposObrigatorios() {
+    if (!nome.trim() || !email.trim()) return false;
+    if (!modoEdicao && (!senha || !confirmarSenha)) return false;
+    return true;
+  }
+
+  function carregarDadosUsuario() {
+    const usuarios = getFromLocalStorage("usuarios") || [];
+    const usuarioCompleto = usuarios.find((u) => u.id === user.id);
+
+    if (usuarioCompleto) {
+      setNome(usuarioCompleto.nome || user.nome || "");
+      setEmail(usuarioCompleto.email || user.email || "");
+    } else {
+      // Fallback para dados do Redux
+      setNome(user.nome || "");
+      setEmail(user.email || "");
+    }
+  }
+
+  // ===== VALIDAÇÕES =====
+
+  const validarEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const validarSenha = (senha) => {
+    return senha.length >= 6;
+  };
+
+  const validarConfirmacaoSenha = (senha, confirmarSenha) => {
+    return senha === confirmarSenha;
+  };
+
+  const verificarEmailExistente = (email, usuarioId = null) => {
+    const usuariosExistentes = getFromLocalStorage("usuarios") || [];
+    return usuariosExistentes.find(
+      (u) => u.email === email && u.id !== usuarioId
+    );
+  };
+
+  // ===== HANDLERS PRINCIPAIS =====
 
   const handleSubmit = (e) => {
     e.preventDefault();
     setErro("");
 
     if (modoEdicao) {
-      // MODO EDIÇÃO - Atualizar usuário existente
-      if (!nome || !email) {
-        setErro("Nome e email são obrigatórios!");
-        return;
-      }
+      editarUsuario();
+    } else {
+      criarUsuario();
+    }
+  };
 
-      if (senha && senha.length < 6) {
-        setErro("A senha deve ter pelo menos 6 caracteres!");
-        return;
-      }
+  const editarUsuario = () => {
+    // Validações
+    if (!validarCamposBasicos()) return;
+    if (senha && !validarCamposSenha()) return;
+    if (!validarEmail(email)) {
+      setErro("Email inválido!");
+      return;
+    }
 
-      if (senha && senha !== confirmarSenha) {
-        setErro("As senhas não coincidem!");
-        return;
-      }
+    const usuarioExistente = verificarEmailExistente(email, user.id);
+    if (usuarioExistente) {
+      setErro("Já existe um usuário com este email!");
+      return;
+    }
 
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email)) {
-        setErro("Email inválido!");
-        return;
-      }
+    // Atualizar usuário
+    const usuarioAtualizado = atualizarUsuarioNoStorage();
+    dispatch(setCurrentUser(usuarioAtualizado));
 
-      // Buscar usuários existentes
-      const usuariosExistentes = getFromLocalStorage("usuarios") || [];
+    navigate("/home");
+  };
 
-      // Verificar se email já existe (excluindo o usuário atual)
-      const usuarioExistente = usuariosExistentes.find(
-        (u) => u.email === email && u.id !== user.id
-      );
+  const criarUsuario = () => {
+    // Validações
+    if (!validarCamposBasicos() || !validarCamposSenha()) return;
+    if (!validarEmail(email)) {
+      setErro("Email inválido!");
+      return;
+    }
 
-      if (usuarioExistente) {
-        setErro("Já existe um usuário com este email!");
-        return;
-      }
+    const usuarioExistente = verificarEmailExistente(email);
+    if (usuarioExistente) {
+      setErro("Já existe um usuário com este email!");
+      return;
+    }
 
-      // Atualizar usuário
-      const usuariosAtualizados = usuariosExistentes.map((usuario) => {
-        if (usuario.id === user.id) {
-          return {
+    // Criar novo usuário
+    criarUsuarioNoStorage();
+    limparFormulario();
+    navigate("/");
+  };
+
+  const validarCamposBasicos = () => {
+    if (!nome.trim() || !email.trim()) {
+      setErro("Nome e email são obrigatórios!");
+      return false;
+    }
+    return true;
+  };
+
+  const validarCamposSenha = () => {
+    if (senha && !validarSenha(senha)) {
+      setErro("A senha deve ter pelo menos 6 caracteres!");
+      return false;
+    }
+
+    if (senha && !validarConfirmacaoSenha(senha, confirmarSenha)) {
+      setErro("As senhas não coincidem!");
+      return false;
+    }
+
+    if (!modoEdicao && (!senha || !confirmarSenha)) {
+      setErro("Todos os campos são obrigatórios!");
+      return false;
+    }
+
+    return true;
+  };
+
+  // ===== OPERAÇÕES NO STORAGE =====
+
+  const atualizarUsuarioNoStorage = () => {
+    const usuariosExistentes = getFromLocalStorage("usuarios") || [];
+
+    const usuariosAtualizados = usuariosExistentes.map((usuario) =>
+      usuario.id === user.id
+        ? {
             ...usuario,
             nome,
             email,
             ...(senha && { senha }), // Atualiza senha apenas se foi informada
             dataAtualizacao: new Date().toISOString(),
-          };
-        }
-        return usuario;
-      });
+          }
+        : usuario
+    );
 
-      // Salvar no localStorage
-      saveToLocalStorage("usuarios", usuariosAtualizados);
+    saveToLocalStorage("usuarios", usuariosAtualizados);
 
-      // Atualizar no Redux
-      const usuarioAtualizado = {
-        ...user,
-        nome,
-        email,
-      };
-      dispatch(setCurrentUser(usuarioAtualizado));
-
-      console.log("Usuário atualizado:", usuarioAtualizado);
-
-      // Redirecionar para home SEM MENSAGEM
-      navigate("/home");
-    } else {
-      // MODO CRIAÇÃO - Criar novo usuário
-      if (!nome || !email || !senha || !confirmarSenha) {
-        setErro("Todos os campos são obrigatórios!");
-        return;
-      }
-
-      if (senha !== confirmarSenha) {
-        setErro("As senhas não coincidem!");
-        return;
-      }
-
-      if (senha.length < 6) {
-        setErro("A senha deve ter pelo menos 6 caracteres!");
-        return;
-      }
-
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email)) {
-        setErro("Email inválido!");
-        return;
-      }
-
-      // Verificar se usuário já existe
-      const usuariosExistentes = getFromLocalStorage("usuarios") || [];
-      const usuarioExistente = usuariosExistentes.find(
-        (user) => user.email === email
-      );
-
-      if (usuarioExistente) {
-        setErro("Já existe um usuário com este email!");
-        return;
-      }
-
-      // Criar novo usuário
-      const novoUsuario = {
-        id: Date.now().toString(),
-        nome,
-        email,
-        senha,
-        dataCriacao: new Date().toISOString(),
-      };
-
-      // Salvar no localStorage
-      const novosUsuarios = [...usuariosExistentes, novoUsuario];
-      saveToLocalStorage("usuarios", novosUsuarios);
-
-      console.log("Novo usuário criado:", novoUsuario);
-
-      // Limpar formulário e redirecionar SEM MENSAGEM
-      setNome("");
-      setEmail("");
-      setSenha("");
-      setConfirmarSenha("");
-      navigate("/");
-    }
+    return {
+      ...user,
+      nome,
+      email,
+    };
   };
+
+  const criarUsuarioNoStorage = () => {
+    const usuariosExistentes = getFromLocalStorage("usuarios") || [];
+
+    const novoUsuario = {
+      id: Date.now().toString(),
+      nome,
+      email,
+      senha,
+      dataCriacao: new Date().toISOString(),
+    };
+
+    const novosUsuarios = [...usuariosExistentes, novoUsuario];
+    saveToLocalStorage("usuarios", novosUsuarios);
+
+    return novoUsuario;
+  };
+
+  const limparFormulario = () => {
+    setNome("");
+    setEmail("");
+    setSenha("");
+    setConfirmarSenha("");
+  };
+
+  // ===== RENDER =====
 
   return (
     <div className="flex flex-col items-center min-h-screen bg-gray-900 text-white p-6 relative">
-      {/* Botão de voltar */}
+      {/* Navegação */}
       <button
         onClick={() => navigate(modoEdicao ? "/home" : "/")}
         className="absolute top-4 left-4 flex items-center gap-2 text-white hover:text-blue-400 transition-colors"
@@ -177,6 +225,7 @@ function CriadorUser() {
         <span>Voltar</span>
       </button>
 
+      {/* Header */}
       <header className="flex items-center gap-4 mt-8 mb-8">
         <img
           src="/src/assets/react.svg"
@@ -188,17 +237,19 @@ function CriadorUser() {
         </h1>
       </header>
 
+      {/* Formulário */}
       <form
         onSubmit={handleSubmit}
         className="bg-gray-800 p-8 rounded-lg shadow-md w-full max-w-lg space-y-6"
       >
+        {/* Mensagem de Erro */}
         {erro && (
           <div className="p-3 bg-red-600 text-white rounded-md text-center">
             {erro}
           </div>
         )}
 
-        {/* Nome */}
+        {/* Campo Nome */}
         <div>
           <label className="block mb-2 text-gray-300">Nome Completo</label>
           <input
@@ -211,7 +262,7 @@ function CriadorUser() {
           />
         </div>
 
-        {/* Email */}
+        {/* Campo Email */}
         <div>
           <label className="block mb-2 text-gray-300">Email</label>
           <input
@@ -224,11 +275,11 @@ function CriadorUser() {
           />
         </div>
 
-        {/* Senha */}
+        {/* Campo Senha */}
         <div>
           <label className="block mb-2 text-gray-300">
             {modoEdicao ? "Nova Senha " : "Senha "}
-            {modoEdicao && (
+            {senhaOpcional && (
               <span className="text-gray-500 text-sm">(opcional)</span>
             )}
           </label>
@@ -242,15 +293,15 @@ function CriadorUser() {
                 : "Digite sua senha (mínimo 6 caracteres)..."
             }
             className="w-full px-4 py-3 rounded bg-gray-700 text-white outline-none border border-gray-600 focus:border-blue-500 transition-colors"
-            required={!modoEdicao}
+            required={!senhaOpcional}
           />
         </div>
 
-        {/* Confirmar senha */}
+        {/* Campo Confirmar Senha */}
         <div>
           <label className="block mb-2 text-gray-300">
             {modoEdicao ? "Confirmar Nova Senha " : "Confirmar Senha "}
-            {modoEdicao && (
+            {senhaOpcional && (
               <span className="text-gray-500 text-sm">(opcional)</span>
             )}
           </label>
@@ -262,11 +313,11 @@ function CriadorUser() {
               modoEdicao ? "Confirme a nova senha..." : "Confirme sua senha..."
             }
             className="w-full px-4 py-3 rounded bg-gray-700 text-white outline-none border border-gray-600 focus:border-blue-500 transition-colors"
-            required={!modoEdicao}
+            required={!senhaOpcional}
           />
         </div>
 
-        {/* Botão de criar/atualizar */}
+        {/* Botão de Ação */}
         <button
           type="submit"
           className="w-full py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-semibold text-white transition-colors"
@@ -275,7 +326,7 @@ function CriadorUser() {
         </button>
       </form>
 
-      {/* Informações adicionais */}
+      {/* Informações Adicionais */}
       <div className="mt-6 p-4 bg-gray-800 rounded-lg max-w-lg w-full">
         <h3 className="text-blue-400 mb-2">Informações:</h3>
         <p className="text-gray-400 text-sm">

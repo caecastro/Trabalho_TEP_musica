@@ -16,9 +16,11 @@ import {
 } from "../../store/slices/playerSlice";
 
 function Musicas({ musica, onClose }) {
+  // ===== HOOKS E REFS =====
   const dispatch = useDispatch();
-  const progressInterval = useRef(null);
+  const progressIntervalRef = useRef(null);
 
+  // ===== REDUX STATE =====
   const { popularTracks } = useSelector((state) => state.music);
   const playerState = useSelector((state) => state.player);
   const {
@@ -30,58 +32,58 @@ function Musicas({ musica, onClose }) {
     currentPlaylist,
   } = playerState;
 
-  // Use currentTrack para mostrar a música atual, não a prop musica
+  // ===== CONSTANTES DERIVADAS =====
   const musicaAtual = currentTrack || musica;
+  const playlistAtiva =
+    currentPlaylist.length > 0 ? currentPlaylist : popularTracks;
+  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
-  // Sincronizar quando a música muda no player
+  // ===== EFEITOS =====
+
+  // Sincronizar música quando o modal abre
   useEffect(() => {
     if (musica && (!currentTrack || currentTrack.id !== musica.id)) {
-      const playlistToUse =
-        currentPlaylist.length > 0 ? currentPlaylist : popularTracks;
       dispatch(
         setCurrentTrack({
           track: musica,
-          playlist: playlistToUse,
+          playlist: playlistAtiva,
         })
       );
     }
-  }, [musica, currentTrack, currentPlaylist, popularTracks, dispatch]);
+  }, [musica, currentTrack, playlistAtiva, dispatch]);
 
-  // Efeito para controlar o avanço do tempo
+  // Controlar progresso da música
   useEffect(() => {
     if (isPlaying && currentTrack) {
-      progressInterval.current = setInterval(() => {
-        dispatch(setCurrentTime(currentTime + 1));
+      progressIntervalRef.current = setInterval(() => {
+        const novoTime = currentTime + 1;
+        dispatch(setCurrentTime(novoTime));
 
-        // Se chegou ao final da música, vai para a próxima
-        if (currentTime >= duration - 1) {
+        // Avançar para próxima música ao finalizar
+        if (novoTime >= duration - 1) {
           dispatch(nextTrack());
         }
       }, 1000);
     } else {
-      if (progressInterval.current) {
-        clearInterval(progressInterval.current);
-      }
+      clearInterval(progressIntervalRef.current);
     }
 
-    return () => {
-      if (progressInterval.current) {
-        clearInterval(progressInterval.current);
-      }
-    };
+    return () => clearInterval(progressIntervalRef.current);
   }, [isPlaying, currentTime, duration, currentTrack, dispatch]);
 
-  const togglePlayPause = () => {
+  // ===== HANDLERS =====
+
+  const handlePlayPause = () => {
     if (!currentTrack && musica) {
-      const playlistToUse =
-        currentPlaylist.length > 0 ? currentPlaylist : popularTracks;
+      // Iniciar reprodução da música do modal
       dispatch(
         setCurrentTrack({
           track: musica,
-          playlist: playlistToUse,
+          playlist: playlistAtiva,
         })
       );
     } else {
+      // Play/Pause normal
       dispatch(togglePlay());
     }
   };
@@ -94,19 +96,7 @@ function Musicas({ musica, onClose }) {
     dispatch(previousTrack());
   };
 
-  const formatTime = (seconds) => {
-    if (!seconds || isNaN(seconds)) return "0:00";
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
-  };
-
-  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
-
-  // Função MELHORADA para verificar se a imagem existe
   const handleImageError = (e) => {
-    console.log("❌ Erro ao carregar imagem no modal:", e.target.src);
-
     const fallbacks = [
       "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300&h=300&fit=crop",
       "https://via.placeholder.com/300x300/4f46e5/ffffff?text=Music",
@@ -114,7 +104,7 @@ function Musicas({ musica, onClose }) {
     ];
 
     const currentSrc = e.target.src;
-    let currentIndex = fallbacks.findIndex((fallback) =>
+    const currentIndex = fallbacks.findIndex((fallback) =>
       currentSrc.includes(fallback)
     );
 
@@ -125,14 +115,27 @@ function Musicas({ musica, onClose }) {
     }
   };
 
+  // ===== FUNÇÕES AUXILIARES =====
+
+  const formatTime = (seconds) => {
+    if (!seconds || isNaN(seconds)) return "0:00";
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  // ===== RENDER CONDICIONAL =====
+
   if (!musicaAtual) {
     return null;
   }
 
+  // ===== RENDER PRINCIPAL =====
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4">
       <div className="bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        {/* Header com botão fechar */}
+        {/* Header do Modal */}
         <div className="flex justify-between items-center p-6 border-b border-gray-700">
           <h2 className="text-2xl font-bold text-white">
             Reprodutor de Música
@@ -140,23 +143,25 @@ function Musicas({ musica, onClose }) {
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-white text-2xl transition-colors"
+            aria-label="Fechar"
           >
             <FaTimes />
           </button>
         </div>
 
-        {/* Conteúdo */}
+        {/* Conteúdo Principal */}
         <div className="p-8">
-          {/* Capa do álbum */}
-          <div className="w-48 h-48 bg-gray-700 rounded-lg shadow-lg mx-auto mb-8 flex items-center justify-center overflow-hidden relative">
+          {/* Capa do Álbum */}
+          <div className="w-48 h-48 bg-gray-700 rounded-lg shadow-lg mx-auto mb-8 flex items-center justify-center overflow-hidden">
             <img
               src={musicaAtual.thumbnail}
-              alt={musicaAtual.nome}
+              alt={`Capa do álbum ${musicaAtual.album}`}
               className="w-full h-full object-cover"
               onError={handleImageError}
             />
           </div>
 
+          {/* Informações da Música */}
           <div className="text-center mb-8">
             <h2 className="text-3xl font-bold mb-2 text-white">
               {musicaAtual.nome}
@@ -164,7 +169,8 @@ function Musicas({ musica, onClose }) {
             <p className="text-xl text-gray-300 mb-1">{musicaAtual.artista}</p>
             <p className="text-lg text-gray-400 mb-4">{musicaAtual.album}</p>
 
-            <div className="flex justify-center gap-6 text-sm text-gray-400">
+            {/* Metadados */}
+            <div className="flex justify-center gap-6 text-sm text-gray-400 flex-wrap">
               <span>Gênero: {musicaAtual.genero}</span>
               <span>Ano: {musicaAtual.ano}</span>
               <span>Duração: {musicaAtual.duracao}</span>
@@ -174,17 +180,20 @@ function Musicas({ musica, onClose }) {
             </div>
           </div>
 
-          {/* Controles */}
+          {/* Controles de Reprodução */}
           <div className="flex items-center justify-center gap-8 mb-8">
             <button
               onClick={handlePrevious}
-              className="text-2xl cursor-pointer text-gray-400 hover:text-white transition-colors"
+              className="text-2xl text-gray-400 hover:text-white transition-colors"
+              aria-label="Música anterior"
             >
               <FaStepBackward />
             </button>
+
             <button
-              onClick={togglePlayPause}
+              onClick={handlePlayPause}
               className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center hover:bg-blue-700 transition-colors"
+              aria-label={isPlaying ? "Pausar" : "Reproduzir"}
             >
               {isPlaying ? (
                 <FaPause className="text-2xl text-white" />
@@ -192,21 +201,23 @@ function Musicas({ musica, onClose }) {
                 <FaPlay className="text-2xl ml-1 text-white" />
               )}
             </button>
+
             <button
               onClick={handleNext}
-              className="text-2xl cursor-pointer text-gray-400 hover:text-white transition-colors"
+              className="text-2xl text-gray-400 hover:text-white transition-colors"
+              aria-label="Próxima música"
             >
               <FaStepForward />
             </button>
           </div>
 
-          {/* Barra de progresso */}
+          {/* Barra de Progresso */}
           <div className="w-full max-w-md mx-auto">
             <div className="h-2 bg-gray-700 rounded-full mb-2">
               <div
                 className="h-2 bg-blue-500 rounded-full transition-all duration-1000"
                 style={{ width: `${progress}%` }}
-              ></div>
+              />
             </div>
             <div className="flex justify-between text-sm text-gray-400">
               <span>{formatTime(currentTime)}</span>

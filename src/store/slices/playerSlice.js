@@ -1,7 +1,13 @@
 // src/store/slices/playerSlice.js
 import { createSlice } from "@reduxjs/toolkit";
 
-// Função para embaralhar array (Fisher-Yates)
+// ===== FUNÇÕES AUXILIARES =====
+
+/**
+ * Embaralha array usando algoritmo Fisher-Yates
+ * @param {Array} array - Array a ser embaralhado
+ * @returns {Array} Array embaralhado
+ */
 const shuffleArray = (array) => {
   const newArray = [...array];
   for (let i = newArray.length - 1; i > 0; i--) {
@@ -11,6 +17,20 @@ const shuffleArray = (array) => {
   return newArray;
 };
 
+/**
+ * Calcula duração em segundos a partir de string "mm:ss"
+ * @param {string} duration - Duração no formato "mm:ss"
+ * @returns {number} Duração em segundos
+ */
+const parseDurationToSeconds = (duration) => {
+  if (typeof duration === "string" && duration.includes(":")) {
+    const [minutes, seconds] = duration.split(":").map(Number);
+    return minutes * 60 + (seconds || 0);
+  }
+  return 180; // Fallback: 3 minutos
+};
+
+// ===== INITIAL STATE =====
 const initialState = {
   currentTrack: null,
   isPlaying: false,
@@ -23,22 +43,26 @@ const initialState = {
   currentTrackIndex: 0,
 };
 
+// ===== SLICE =====
 const playerSlice = createSlice({
   name: "player",
   initialState,
   reducers: {
+    /**
+     * Define a música atual e playlist
+     */
     setCurrentTrack: (state, action) => {
       const { track, playlist } = action.payload;
       state.currentTrack = track;
       state.currentPlaylist = playlist || [];
 
-      // Encontra o índice atual
+      // Encontrar índice atual
       const currentIndex = state.currentPlaylist.findIndex(
         (t) => t.id === track?.id
       );
       state.currentTrackIndex = currentIndex !== -1 ? currentIndex : 0;
 
-      // Se shuffle está ativo, cria playlist embaralhada
+      // Criar playlist embaralhada se shuffle ativo
       if (state.shuffle && state.currentPlaylist.length > 0) {
         const otherTracks = state.currentPlaylist.filter(
           (_, index) => index !== currentIndex
@@ -52,21 +76,10 @@ const playerSlice = createSlice({
         state.shuffledPlaylist = [];
       }
 
-      // CORREÇÃO: Calcular duração de forma mais robusta
-      if (track && track.duracao) {
-        // Se já está no formato "mm:ss", converter para segundos
-        if (typeof track.duracao === "string" && track.duracao.includes(":")) {
-          const [minutes, seconds] = track.duracao.split(":").map(Number);
-          state.duration = minutes * 60 + (seconds || 0);
-        } else {
-          // Se é número, assumir que está em ms e converter para segundos
-          const durationMs = parseInt(track.duracao);
-          state.duration = Math.floor(durationMs / 1000);
-        }
-      } else {
-        state.duration = 180; // Fallback: 3 minutos
-      }
-
+      // Calcular duração
+      state.duration = track?.duracao
+        ? parseDurationToSeconds(track.duracao)
+        : 180;
       state.currentTime = 0;
       state.isPlaying = true;
     },
@@ -91,110 +104,66 @@ const playerSlice = createSlice({
       state.duration = action.payload;
     },
 
+    /**
+     * Avança para a próxima música
+     */
     nextTrack: (state) => {
       const playlist = state.shuffle
         ? state.shuffledPlaylist
         : state.currentPlaylist;
+
       if (playlist.length === 0) return;
 
-      let nextIndex;
-
-      if (state.shuffle) {
-        // Na shuffled playlist, vai para a próxima em ordem
-        nextIndex = (state.currentTrackIndex + 1) % playlist.length;
-      } else {
-        // Na playlist normal, vai para a próxima
-        nextIndex = (state.currentTrackIndex + 1) % playlist.length;
-      }
-
+      const nextIndex = (state.currentTrackIndex + 1) % playlist.length;
       state.currentTrackIndex = nextIndex;
       state.currentTrack = playlist[nextIndex];
-
-      // Calcula a duração real da nova música
-      if (state.currentTrack && state.currentTrack.duracao) {
-        if (
-          typeof state.currentTrack.duracao === "string" &&
-          state.currentTrack.duracao.includes(":")
-        ) {
-          const [minutes, seconds] = state.currentTrack.duracao
-            .split(":")
-            .map(Number);
-          state.duration = minutes * 60 + (seconds || 0);
-        } else {
-          state.duration = 180; // Fallback
-        }
-      } else {
-        state.duration = 180; // Fallback
-      }
-
+      state.duration = parseDurationToSeconds(state.currentTrack?.duracao);
       state.currentTime = 0;
       state.isPlaying = true;
     },
 
+    /**
+     * Volta para a música anterior
+     */
     previousTrack: (state) => {
       const playlist = state.shuffle
         ? state.shuffledPlaylist
         : state.currentPlaylist;
+
       if (playlist.length === 0) return;
 
-      // Se estiver nos primeiros 5 segundos, volta para música anterior
+      // Se estiver nos primeiros 5 segundos, volta para anterior
       if (state.currentTime > 5) {
         state.currentTime = 0;
         return;
       }
 
-      let prevIndex;
-
-      if (state.shuffle) {
-        // Na shuffled playlist, volta para a anterior
-        prevIndex =
-          state.currentTrackIndex === 0
-            ? playlist.length - 1
-            : state.currentTrackIndex - 1;
-      } else {
-        // Na playlist normal, volta para a anterior
-        prevIndex =
-          state.currentTrackIndex === 0
-            ? playlist.length - 1
-            : state.currentTrackIndex - 1;
-      }
+      const prevIndex =
+        state.currentTrackIndex === 0
+          ? playlist.length - 1
+          : state.currentTrackIndex - 1;
 
       state.currentTrackIndex = prevIndex;
       state.currentTrack = playlist[prevIndex];
-
-      // Calcula a duração real da nova música
-      if (state.currentTrack && state.currentTrack.duracao) {
-        if (
-          typeof state.currentTrack.duracao === "string" &&
-          state.currentTrack.duracao.includes(":")
-        ) {
-          const [minutes, seconds] = state.currentTrack.duracao
-            .split(":")
-            .map(Number);
-          state.duration = minutes * 60 + (seconds || 0);
-        } else {
-          state.duration = 180; // Fallback
-        }
-      } else {
-        state.duration = 180; // Fallback
-      }
-
+      state.duration = parseDurationToSeconds(state.currentTrack?.duracao);
       state.currentTime = 0;
       state.isPlaying = true;
     },
 
+    /**
+     * Ativa/desativa modo shuffle
+     */
     toggleShuffle: (state) => {
       const newShuffleState = !state.shuffle;
 
       if (newShuffleState && state.currentPlaylist.length > 0) {
-        // Ativando shuffle - cria playlist embaralhada
+        // Ativar shuffle - criar playlist embaralhada
         const currentTrackId = state.currentTrack?.id;
         const currentIndex = state.currentPlaylist.findIndex(
           (track) => track.id === currentTrackId
         );
 
         if (currentIndex !== -1) {
-          // Mantém a música atual como primeira
           const otherTracks = state.currentPlaylist.filter(
             (track, index) => index !== currentIndex
           );
@@ -206,7 +175,7 @@ const playerSlice = createSlice({
           state.currentTrackIndex = 0;
         }
       } else {
-        // Desativando shuffle - volta para playlist original
+        // Desativar shuffle - voltar para playlist original
         if (state.currentTrack) {
           const originalIndex = state.currentPlaylist.findIndex(
             (track) => track.id === state.currentTrack.id
@@ -225,7 +194,8 @@ const playerSlice = createSlice({
 
     setPlaylist: (state, action) => {
       state.currentPlaylist = action.payload;
-      // Se shuffle está ativo, recria a shuffled playlist
+
+      // Recriar shuffled playlist se shuffle ativo
       if (state.shuffle && action.payload.length > 0) {
         const currentTrackId = state.currentTrack?.id;
         const currentIndex = action.payload.findIndex(
@@ -262,6 +232,7 @@ const playerSlice = createSlice({
   },
 });
 
+// ===== EXPORTS =====
 export const {
   setCurrentTrack,
   playTrack,

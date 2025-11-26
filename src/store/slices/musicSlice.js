@@ -1,6 +1,8 @@
+// src/store/slices/musicSlice.js
 import { createSlice } from "@reduxjs/toolkit";
-import { searchTracks, getPopularTracks } from "../../services/audioDBApi";
+import { searchTracks, getPopularTracks } from "../../services/api";
 
+// ===== INITIAL STATE =====
 const initialState = {
   popularTracks: [],
   searchResults: [],
@@ -10,6 +12,7 @@ const initialState = {
   currentTrack: null,
 };
 
+// ===== SLICE =====
 const musicSlice = createSlice({
   name: "music",
   initialState,
@@ -21,6 +24,7 @@ const musicSlice = createSlice({
     fetchPopularSuccess: (state, action) => {
       state.loading = false;
       state.popularTracks = action.payload;
+      state.error = null;
     },
     fetchPopularFailure: (state, action) => {
       state.loading = false;
@@ -34,6 +38,7 @@ const musicSlice = createSlice({
       state.loading = false;
       state.searchResults = action.payload.tracks;
       state.searchQuery = action.payload.query;
+      state.error = null;
     },
     searchFailure: (state, action) => {
       state.loading = false;
@@ -49,35 +54,51 @@ const musicSlice = createSlice({
     clearError: (state) => {
       state.error = null;
     },
+    setPopularTracks: (state, action) => {
+      state.popularTracks = action.payload;
+    },
   },
 });
 
-// Thunks
+// ===== THUNKS =====
+
+/**
+ * Busca músicas populares da API
+ */
 export const fetchPopularTracks = () => async (dispatch) => {
-  dispatch(fetchPopularStart());
+  dispatch(musicSlice.actions.fetchPopularStart());
+
   try {
     const tracks = await getPopularTracks();
-    dispatch(fetchPopularSuccess(tracks));
+    dispatch(musicSlice.actions.fetchPopularSuccess(tracks));
   } catch (error) {
-    dispatch(fetchPopularFailure(error.message));
+    console.error("Erro ao buscar músicas populares:", error);
+    dispatch(musicSlice.actions.fetchPopularFailure(error.message));
   }
 };
 
+/**
+ * Busca músicas por query
+ * @param {string} query - Termo de busca
+ */
 export const searchTracksByQuery = (query) => async (dispatch) => {
   if (!query.trim()) {
-    dispatch(clearSearch());
+    dispatch(musicSlice.actions.clearSearch());
     return;
   }
 
-  dispatch(searchStart());
+  dispatch(musicSlice.actions.searchStart());
+
   try {
     const tracks = await searchTracks(query);
-    dispatch(searchSuccess({ tracks, query }));
+    dispatch(musicSlice.actions.searchSuccess({ tracks, query }));
   } catch (error) {
-    dispatch(searchFailure(error.message));
+    console.error("Erro na busca de músicas:", error);
+    dispatch(musicSlice.actions.searchFailure(error.message));
   }
 };
 
+// ===== EXPORTS =====
 export const {
   fetchPopularStart,
   fetchPopularSuccess,
@@ -88,6 +109,7 @@ export const {
   setCurrentTrack,
   clearSearch,
   clearError,
+  setPopularTracks,
 } = musicSlice.actions;
 
 export default musicSlice.reducer;
