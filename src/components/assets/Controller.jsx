@@ -28,6 +28,7 @@ import {
   setCurrentTime,
   setDuration,
 } from "../../store/slices/playerSlice";
+import { searchTracksByQuery } from "../../store/slices/musicSlice";
 import PropTypes from "prop-types";
 import { useState, useEffect, useRef } from "react";
 
@@ -37,6 +38,7 @@ function Controller({ onSearch }) {
   const [showPlaylists, setShowPlaylists] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const progressIntervalRef = useRef(null);
+  const searchTimeoutRef = useRef(null);
   const playlistsRef = useRef(null);
   const playlistButtonRef = useRef(null);
 
@@ -108,7 +110,6 @@ function Controller({ onSearch }) {
   // Efeito para definir a duração real quando uma nova música começa
   useEffect(() => {
     if (currentTrack && currentTrack.duracao) {
-      // Converte a duração do formato "mm:ss" para segundos
       if (
         typeof currentTrack.duracao === "string" &&
         currentTrack.duracao.includes(":")
@@ -117,7 +118,6 @@ function Controller({ onSearch }) {
         const realDuration = minutes * 60 + seconds;
         dispatch(setDuration(realDuration));
       } else {
-        // Fallback para 3 minutos
         dispatch(setDuration(180));
       }
     }
@@ -134,9 +134,17 @@ function Controller({ onSearch }) {
   const handleSearchChange = (e) => {
     const value = e.target.value;
     setSearchTerm(value);
-    if (onSearch) {
-      onSearch(value);
+
+    // Disparar busca LOCAL após um pequeno delay
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
     }
+
+    searchTimeoutRef.current = setTimeout(() => {
+      if (onSearch) {
+        onSearch(value); // Agora passa a busca para o componente pai
+      }
+    }, 300); // Reduzido para 300ms para melhor responsividade
   };
 
   const handleSelectPlaylist = (playlist) => {
@@ -160,6 +168,25 @@ function Controller({ onSearch }) {
 
     if (confirmDelete) {
       dispatch(deletePlaylist(playlist.id));
+
+      // Se a playlist excluída era a atual, forçar atualização para playlist padrão
+      if (currentPlaylist?.id === playlist.id) {
+        // Encontrar a playlist padrão "Top 10 da Semana"
+        const defaultPlaylist = playlists.find((p) => p.isDefault);
+        if (defaultPlaylist) {
+          dispatch(setCurrentPlaylist(defaultPlaylist));
+          if (defaultPlaylist.musicas?.length > 0) {
+            dispatch(
+              setCurrentTrack({
+                track: defaultPlaylist.musicas[0],
+                playlist: defaultPlaylist.musicas,
+              })
+            );
+          }
+        }
+      }
+
+      setShowPlaylists(false);
     }
   };
 
@@ -223,7 +250,6 @@ function Controller({ onSearch }) {
     setShowPlaylists((prev) => !prev);
   };
 
-  // Função MELHORADA para verificar se a imagem existe
   const handleImageError = (e) => {
     console.log("❌ Erro ao carregar imagem no controller:", e.target.src);
 
@@ -274,7 +300,7 @@ function Controller({ onSearch }) {
           <FaSearch />
           <input
             type="text"
-            placeholder="Pesquisar..."
+            placeholder="Pesquisar música ou artista..."
             className="bg-transparent outline-none text-white placeholder-gray-400 w-48"
             value={searchTerm}
             onChange={handleSearchChange}

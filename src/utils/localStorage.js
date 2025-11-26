@@ -1,69 +1,77 @@
 // src/utils/localStorage.js
 export const saveToLocalStorage = (key, data) => {
   try {
-    const serializedData = JSON.stringify(data);
-    localStorage.setItem(key, serializedData);
-    return true;
+    if (typeof window !== "undefined" && window.localStorage) {
+      const serializedData = JSON.stringify(data);
+      localStorage.setItem(key, serializedData);
+      return true;
+    }
+    return false;
   } catch (error) {
-    console.error("Erro ao salvar no localStorage:", error);
+    console.error(`Erro ao salvar no localStorage (${key}):`, error);
     return false;
   }
 };
 
 export const getFromLocalStorage = (key) => {
   try {
-    const serializedData = localStorage.getItem(key);
-    if (serializedData === null) {
-      return null;
+    if (typeof window !== "undefined" && window.localStorage) {
+      const serializedData = localStorage.getItem(key);
+      if (serializedData === null) {
+        return null;
+      }
+      return JSON.parse(serializedData);
     }
-    return JSON.parse(serializedData);
+    return null;
   } catch (error) {
-    console.error("Erro ao recuperar do localStorage:", error);
+    console.error(`Erro ao carregar do localStorage (${key}):`, error);
     return null;
   }
 };
 
 export const removeFromLocalStorage = (key) => {
   try {
-    localStorage.removeItem(key);
-    return true;
+    if (typeof window !== "undefined" && window.localStorage) {
+      localStorage.removeItem(key);
+      return true;
+    }
+    return false;
   } catch (error) {
-    console.error("Erro ao remover do localStorage:", error);
+    console.error(`Erro ao remover do localStorage (${key}):`, error);
     return false;
   }
 };
 
 export const clearLocalStorage = () => {
   try {
-    localStorage.clear();
-    return true;
+    if (typeof window !== "undefined" && window.localStorage) {
+      localStorage.clear();
+      return true;
+    }
+    return false;
   } catch (error) {
     console.error("Erro ao limpar localStorage:", error);
     return false;
   }
 };
 
-// Funções para sessionStorage
-export const saveToSessionStorage = (key, data) => {
-  try {
-    const serializedData = JSON.stringify(data);
-    sessionStorage.setItem(key, serializedData);
-    return true;
-  } catch (error) {
-    console.error("Erro ao salvar no sessionStorage:", error);
-    return false;
-  }
+// Utilitário para backup/restore
+export const backupPlaylists = () => {
+  const playlists = getFromLocalStorage("playlists");
+  const currentPlaylist = getFromLocalStorage("currentPlaylist");
+
+  return {
+    playlists,
+    currentPlaylist,
+    backupDate: new Date().toISOString(),
+  };
 };
 
-export const getFromSessionStorage = (key) => {
-  try {
-    const serializedData = sessionStorage.getItem(key);
-    if (serializedData === null) {
-      return null;
-    }
-    return JSON.parse(serializedData);
-  } catch (error) {
-    console.error("Erro ao recuperar do sessionStorage:", error);
-    return null;
+export const restorePlaylists = (backupData) => {
+  if (backupData.playlists) {
+    saveToLocalStorage("playlists", backupData.playlists);
+  }
+  if (backupData.currentPlaylist) {
+    saveToLocalStorage("currentPlaylist", backupData.currentPlaylist);
   }
 };

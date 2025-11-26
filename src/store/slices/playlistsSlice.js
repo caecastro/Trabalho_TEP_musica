@@ -16,9 +16,61 @@ const DEFAULT_PLAYLIST = {
   updatedAt: new Date().toISOString(),
 };
 
+// Funções auxiliares para gerenciamento do localStorage
+const PlaylistManager = {
+  // Buscar todas as playlists
+  getPlaylists: () => {
+    const playlists = getFromLocalStorage("playlists");
+    if (!playlists || !Array.isArray(playlists)) {
+      return [DEFAULT_PLAYLIST];
+    }
+
+    // Garantir que a playlist padrão existe
+    const hasDefault = playlists.some((p) => p.id === "default_top_10");
+    if (!hasDefault) {
+      playlists.unshift(DEFAULT_PLAYLIST);
+      saveToLocalStorage("playlists", playlists);
+    }
+
+    return playlists;
+  },
+
+  // Buscar playlist atual
+  getCurrentPlaylist: () => {
+    const current = getFromLocalStorage("currentPlaylist");
+    return current || DEFAULT_PLAYLIST;
+  },
+
+  // Salvar playlists
+  savePlaylists: (playlists) => {
+    saveToLocalStorage("playlists", playlists);
+  },
+
+  // Salvar playlist atual
+  saveCurrentPlaylist: (playlist) => {
+    saveToLocalStorage("currentPlaylist", playlist);
+  },
+
+  // Gerar ID único para nova playlist
+  generateId: () => {
+    return `playlist_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  },
+
+  // Validar dados da playlist
+  validatePlaylist: (playlist) => {
+    if (!playlist.nome || !playlist.nome.trim()) {
+      throw new Error("Nome da playlist é obrigatório");
+    }
+    if (!playlist.musicas || !Array.isArray(playlist.musicas)) {
+      throw new Error("Playlist deve ter um array de músicas");
+    }
+    return true;
+  },
+};
+
 const initialState = {
-  playlists: getFromLocalStorage("playlists") || [DEFAULT_PLAYLIST],
-  currentPlaylist: getFromLocalStorage("currentPlaylist") || DEFAULT_PLAYLIST,
+  playlists: PlaylistManager.getPlaylists(),
+  currentPlaylist: PlaylistManager.getCurrentPlaylist(),
   loading: false,
   error: null,
 };
@@ -34,14 +86,21 @@ const playlistSlice = createSlice({
     },
     createPlaylistSuccess: (state, action) => {
       state.loading = false;
-      const newPlaylist = {
-        ...action.payload,
-        id: Date.now().toString(),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      state.playlists.push(newPlaylist);
-      saveToLocalStorage("playlists", state.playlists);
+      try {
+        PlaylistManager.validatePlaylist(action.payload);
+
+        const newPlaylist = {
+          ...action.payload,
+          id: PlaylistManager.generateId(),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+
+        state.playlists.push(newPlaylist);
+        PlaylistManager.savePlaylists(state.playlists);
+      } catch (error) {
+        state.error = error.message;
+      }
     },
     createPlaylistFailure: (state, action) => {
       state.loading = false;
@@ -51,9 +110,7 @@ const playlistSlice = createSlice({
     // Read
     setCurrentPlaylist: (state, action) => {
       state.currentPlaylist = action.payload;
-      saveToLocalStorage("currentPlaylist", action.payload);
-      // Salvar última playlist acessada no sessionStorage
-      sessionStorage.setItem("lastPlaylist", JSON.stringify(action.payload));
+      PlaylistManager.saveCurrentPlaylist(action.payload);
     },
 
     // Update
@@ -63,23 +120,34 @@ const playlistSlice = createSlice({
     },
     updatePlaylistSuccess: (state, action) => {
       state.loading = false;
-      const index = state.playlists.findIndex(
-        (p) => p.id === action.payload.id
-      );
-      if (index !== -1) {
+      try {
+        PlaylistManager.validatePlaylist(action.payload);
+
+        const index = state.playlists.findIndex(
+          (p) => p.id === action.payload.id
+        );
+
+        if (index === -1) {
+          throw new Error("Playlist não encontrada");
+        }
+
         state.playlists[index] = {
           ...action.payload,
           updatedAt: new Date().toISOString(),
         };
-        saveToLocalStorage("playlists", state.playlists);
 
+        PlaylistManager.savePlaylists(state.playlists);
+
+        // Atualizar currentPlaylist se for a mesma
         if (
           state.currentPlaylist &&
           state.currentPlaylist.id === action.payload.id
         ) {
           state.currentPlaylist = state.playlists[index];
-          saveToLocalStorage("currentPlaylist", state.playlists[index]);
+          PlaylistManager.saveCurrentPlaylist(state.playlists[index]);
         }
+      } catch (error) {
+        state.error = error.message;
       }
     },
     updatePlaylistFailure: (state, action) => {
@@ -94,16 +162,30 @@ const playlistSlice = createSlice({
     },
     deletePlaylistSuccess: (state, action) => {
       state.loading = false;
-      state.playlists = state.playlists.filter((p) => p.id !== action.payload);
-      saveToLocalStorage("playlists", state.playlists);
+      const deletedPlaylistId = action.payload;
 
+      // Não permitir deletar playlist padrão
+      if (deletedPlaylistId === "default_top_10") {
+        state.error = "Não é possível deletar a playlist padrão";
+        return;
+      }
+
+      // Remover a playlist
+      state.playlists = state.playlists.filter(
+        (p) => p.id !== deletedPlaylistId
+      );
+      PlaylistManager.savePlaylists(state.playlists);
+
+      // Se a playlist deletada era a atual, voltar para a padrão
       if (
         state.currentPlaylist &&
-        state.currentPlaylist.id === action.payload
+        state.currentPlaylist.id === deletedPlaylistId
       ) {
-        // Se deletar a playlist atual, voltar para a padrão
-        state.currentPlaylist = DEFAULT_PLAYLIST;
-        saveToLocalStorage("currentPlaylist", DEFAULT_PLAYLIST);
+        const defaultPlaylist =
+          state.playlists.find((p) => p.id === "default_top_10") ||
+          DEFAULT_PLAYLIST;
+        state.currentPlaylist = defaultPlaylist;
+        PlaylistManager.saveCurrentPlaylist(defaultPlaylist);
       }
     },
     deletePlaylistFailure: (state, action) => {
@@ -114,6 +196,12 @@ const playlistSlice = createSlice({
     // Musicas nas playlists
     addMusicToPlaylist: (state, action) => {
       const { playlistId, music } = action.payload;
+
+      if (!playlistId || !music) {
+        state.error = "Playlist ID e música são obrigatórios";
+        return;
+      }
+
       const playlist = state.playlists.find((p) => p.id === playlistId);
       if (playlist && !playlist.isDefault) {
         // Verificar se a música já existe na playlist
@@ -121,19 +209,19 @@ const playlistSlice = createSlice({
         if (!musicExists) {
           const newMusic = {
             ...music,
-            id: music.id || Date.now().toString(),
+            id: music.id || PlaylistManager.generateId(),
             addedAt: new Date().toISOString(),
           };
           playlist.musicas.push(newMusic);
           playlist.updatedAt = new Date().toISOString();
-          saveToLocalStorage("playlists", state.playlists);
+          PlaylistManager.savePlaylists(state.playlists);
 
           if (
             state.currentPlaylist &&
             state.currentPlaylist.id === playlistId
           ) {
             state.currentPlaylist = playlist;
-            saveToLocalStorage("currentPlaylist", playlist);
+            PlaylistManager.saveCurrentPlaylist(playlist);
           }
         }
       }
@@ -141,69 +229,120 @@ const playlistSlice = createSlice({
 
     removeMusicFromPlaylist: (state, action) => {
       const { playlistId, musicId } = action.payload;
+
+      if (!playlistId || !musicId) {
+        state.error = "Playlist ID e Music ID são obrigatórios";
+        return;
+      }
+
       const playlist = state.playlists.find((p) => p.id === playlistId);
       if (playlist && !playlist.isDefault) {
         playlist.musicas = playlist.musicas.filter((m) => m.id !== musicId);
         playlist.updatedAt = new Date().toISOString();
-        saveToLocalStorage("playlists", state.playlists);
+        PlaylistManager.savePlaylists(state.playlists);
 
         if (state.currentPlaylist && state.currentPlaylist.id === playlistId) {
           state.currentPlaylist = playlist;
-          saveToLocalStorage("currentPlaylist", playlist);
+          PlaylistManager.saveCurrentPlaylist(playlist);
         }
       }
     },
 
+    // Clear
     clearError: (state) => {
       state.error = null;
     },
 
     clearCurrentPlaylist: (state) => {
       state.currentPlaylist = DEFAULT_PLAYLIST;
-      saveToLocalStorage("currentPlaylist", DEFAULT_PLAYLIST);
+      PlaylistManager.saveCurrentPlaylist(DEFAULT_PLAYLIST);
     },
 
     // Popular playlist padrão com músicas populares
     populateDefaultPlaylist: (state, action) => {
-      const defaultPlaylist = state.playlists.find(
+      const defaultPlaylistIndex = state.playlists.findIndex(
         (p) => p.id === "default_top_10"
       );
-      if (defaultPlaylist) {
-        defaultPlaylist.musicas = action.payload;
-        defaultPlaylist.updatedAt = new Date().toISOString();
-        saveToLocalStorage("playlists", state.playlists);
+
+      if (defaultPlaylistIndex !== -1) {
+        state.playlists[defaultPlaylistIndex].musicas = action.payload;
+        state.playlists[defaultPlaylistIndex].updatedAt =
+          new Date().toISOString();
 
         if (
           state.currentPlaylist &&
           state.currentPlaylist.id === "default_top_10"
         ) {
-          state.currentPlaylist = defaultPlaylist;
-          saveToLocalStorage("currentPlaylist", defaultPlaylist);
+          state.currentPlaylist = state.playlists[defaultPlaylistIndex];
+          PlaylistManager.saveCurrentPlaylist(state.currentPlaylist);
         }
+      } else {
+        // Se não existe, criar a playlist padrão
+        const newDefaultPlaylist = {
+          ...DEFAULT_PLAYLIST,
+          musicas: action.payload,
+        };
+        state.playlists.unshift(newDefaultPlaylist);
+
+        if (!state.currentPlaylist) {
+          state.currentPlaylist = newDefaultPlaylist;
+          PlaylistManager.saveCurrentPlaylist(newDefaultPlaylist);
+        }
+      }
+
+      PlaylistManager.savePlaylists(state.playlists);
+    },
+
+    // Reset para estado inicial (útil para desenvolvimento)
+    resetPlaylists: (state) => {
+      state.playlists = [DEFAULT_PLAYLIST];
+      state.currentPlaylist = DEFAULT_PLAYLIST;
+      state.loading = false;
+      state.error = null;
+      PlaylistManager.savePlaylists(state.playlists);
+      PlaylistManager.saveCurrentPlaylist(DEFAULT_PLAYLIST);
+    },
+
+    // Export/Import playlists
+    exportPlaylists: (state) => {
+      const data = {
+        playlists: state.playlists,
+        currentPlaylist: state.currentPlaylist,
+        exportedAt: new Date().toISOString(),
+      };
+      return JSON.stringify(data, null, 2);
+    },
+
+    importPlaylists: (state, action) => {
+      try {
+        const data = JSON.parse(action.payload);
+        if (data.playlists && Array.isArray(data.playlists)) {
+          state.playlists = data.playlists;
+          state.currentPlaylist = data.currentPlaylist || DEFAULT_PLAYLIST;
+          PlaylistManager.savePlaylists(state.playlists);
+          PlaylistManager.saveCurrentPlaylist(state.currentPlaylist);
+        } else {
+          throw new Error("Dados de importação inválidos");
+        }
+      } catch (error) {
+        state.error = `Erro na importação: ${error.message}`;
       }
     },
   },
 });
 
-// Thunks
+// Thunks melhorados
 export const createPlaylist = (playlistData) => (dispatch, getState) => {
   dispatch(createPlaylistStart());
   try {
     const { auth } = getState();
     const playlistWithUser = {
       ...playlistData,
-      usuarioId: auth.user.id,
+      usuarioId: auth.user?.id || "anonymous",
       musicas: playlistData.musicas || [],
       isDefault: false,
     };
     dispatch(createPlaylistSuccess(playlistWithUser));
-
-    // Definir a nova playlist como atual
-    const newPlaylist = {
-      ...playlistWithUser,
-      id: Date.now().toString(),
-    };
-    dispatch(setCurrentPlaylist(newPlaylist));
   } catch (error) {
     dispatch(createPlaylistFailure(error.message));
   }
@@ -243,6 +382,9 @@ export const {
   clearError,
   clearCurrentPlaylist,
   populateDefaultPlaylist,
+  resetPlaylists,
+  exportPlaylists,
+  importPlaylists,
 } = playlistSlice.actions;
 
 export default playlistSlice.reducer;

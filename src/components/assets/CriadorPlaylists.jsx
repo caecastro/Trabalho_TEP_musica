@@ -5,6 +5,7 @@ import { FaArrowLeft, FaCheck, FaMusic, FaSave } from "react-icons/fa";
 import {
   createPlaylist,
   updatePlaylist,
+  setCurrentPlaylist,
 } from "../../store/slices/playlistsSlice";
 import { fetchPopularTracks } from "../../store/slices/musicSlice";
 
@@ -12,7 +13,7 @@ function CriadorPlaylists() {
   const { id } = useParams();
   const [nome, setNome] = useState("");
   const [musicasSelecionadas, setMusicasSelecionadas] = useState([]);
-  const [playlistOriginal, setPlaylistOriginal] = useState(null); // ← ADICIONADO para guardar a playlist original
+  const [playlistOriginal, setPlaylistOriginal] = useState(null);
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
@@ -23,6 +24,7 @@ function CriadorPlaylists() {
   const isEditMode = !!id;
 
   useEffect(() => {
+    // Buscar músicas populares da API
     dispatch(fetchPopularTracks());
 
     if (isEditMode) {
@@ -34,7 +36,6 @@ function CriadorPlaylists() {
         return;
       }
 
-      // ← CORREÇÃO: Verificação mais robusta da permissão
       const canEdit = playlist.usuarioId === user?.id || playlist.isDefault;
 
       if (!canEdit) {
@@ -43,7 +44,7 @@ function CriadorPlaylists() {
         return;
       }
 
-      setPlaylistOriginal(playlist); // ← SALVAR A PLAYLIST ORIGINAL
+      setPlaylistOriginal(playlist);
       setNome(playlist.nome);
       setMusicasSelecionadas(playlist.musicas || []);
     }
@@ -80,38 +81,40 @@ function CriadorPlaylists() {
     }
 
     if (isEditMode) {
-      // ← CORREÇÃO: Usar a playlist original mantendo todos os dados
       if (!playlistOriginal) {
         alert("Erro: Playlist original não encontrada!");
         return;
       }
 
       const playlistData = {
-        ...playlistOriginal, // ← MANTER TODOS OS DADOS ORIGINAIS
+        ...playlistOriginal,
         nome: nome.trim(),
         musicas: musicasSelecionadas,
-        updatedAt: new Date().toISOString(), // ← ATUALIZAR TIMESTAMP
+        updatedAt: new Date().toISOString(),
       };
 
       dispatch(updatePlaylist(playlistData));
+
+      // Definir a playlist editada como a playlist atual
+      dispatch(setCurrentPlaylist(playlistData));
+
       alert(`Playlist "${nome}" atualizada com sucesso!`);
+      navigate("/home");
     } else {
-      // Modo criação
       const playlistData = {
         nome: nome.trim(),
         musicas: musicasSelecionadas,
       };
       dispatch(createPlaylist(playlistData));
       alert(`Playlist "${nome}" criada com sucesso!`);
+      navigate("/home");
     }
-
-    navigate("/home");
   };
 
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white">
-        <div className="text-2xl">Carregando músicas...</div>
+        <div className="text-2xl">Carregando músicas da API...</div>
       </div>
     );
   }
@@ -167,7 +170,7 @@ function CriadorPlaylists() {
         {/* Seletor de músicas */}
         <div>
           <div className="flex justify-between items-center mb-4">
-            <label className="block text-lg">Selecionar Músicas</label>
+            <label className="block text-lg">Selecionar Músicas da API</label>
             <button
               type="button"
               onClick={handleSelectAll}
@@ -234,7 +237,8 @@ function CriadorPlaylists() {
           </div>
 
           <div className="text-sm text-gray-400 mt-2">
-            {musicasSelecionadas.length} música(s) selecionada(s)
+            {musicasSelecionadas.length} música(s) selecionada(s) de{" "}
+            {popularTracks.length} disponíveis
           </div>
         </div>
 

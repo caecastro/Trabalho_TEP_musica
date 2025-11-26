@@ -47,7 +47,7 @@ const authSlice = createSlice({
       removeFromSessionStorage("lastPlaylist");
       removeFromSessionStorage("lastLogin");
 
-      // NOVO: Remover marcação de usuário logado no localStorage
+      // Remover marcação de usuário logado no localStorage
       const usuarios = getFromLocalStorage("usuarios") || [];
       const usuariosAtualizados = usuarios.map((usuario) => ({
         ...usuario,
@@ -67,6 +67,11 @@ const authSlice = createSlice({
       state.isAuthenticated = true;
       saveToSessionStorage("user", action.payload);
     },
+    // NOVO: Reducer específico para resetar a última playlist ao login
+    resetPlaylistOnLogin: (state) => {
+      state.lastPlaylist = null;
+      removeFromSessionStorage("lastPlaylist");
+    },
   },
 });
 
@@ -78,6 +83,7 @@ export const {
   setLastPlaylist,
   clearError,
   setCurrentUser,
+  resetPlaylistOnLogin, // NOVO: Exportar a nova ação
 } = authSlice.actions;
 
 // Thunk para login - ATUALIZADO
@@ -114,13 +120,15 @@ export const login = (credentials) => (dispatch) => {
         lastLogin: new Date().toISOString(),
       };
 
-      // NOVO: Marcar este usuário como logado no localStorage
+      // Marcar este usuário como logado no localStorage
       const usuariosAtualizados = usuarios.map((usuario) => ({
         ...usuario,
-        logado: usuario.id === usuarioEncontrado.id, // marca apenas este usuário como logado
+        logado: usuario.id === usuarioEncontrado.id,
       }));
       saveToLocalStorage("usuarios", usuariosAtualizados);
 
+      // NOVO: Resetar a última playlist antes do login success
+      dispatch(resetPlaylistOnLogin());
       dispatch(loginSuccess(user));
     } else {
       dispatch(loginFailure("Senha incorreta"));
@@ -130,10 +138,10 @@ export const login = (credentials) => (dispatch) => {
     const novoUsuario = {
       id: Date.now().toString(),
       email: email,
-      nome: email.split("@")[0], // Usa parte do email como nome
+      nome: email.split("@")[0],
       senha: password,
       createdAt: new Date().toISOString(),
-      logado: true, // NOVO: Já marca como logado
+      logado: true,
     };
 
     // Adicionar novo usuário ao array e marcar todos os outros como não logados
@@ -152,12 +160,14 @@ export const login = (credentials) => (dispatch) => {
       lastLogin: new Date().toISOString(),
     };
 
+    // NOVO: Resetar a última playlist antes do login success
+    dispatch(resetPlaylistOnLogin());
     dispatch(loginSuccess(user));
     console.log("Novo usuário criado automaticamente:", novoUsuario);
   }
 };
 
-// Thunk para registro de usuário (opcional) - ATUALIZADO
+// Thunk para registro de usuário - ATUALIZADO
 export const registerUser = (userData) => (dispatch) => {
   const { email, password, nome } = userData;
 
@@ -191,10 +201,10 @@ export const registerUser = (userData) => (dispatch) => {
     nome: nome || email.split("@")[0],
     senha: password,
     createdAt: new Date().toISOString(),
-    logado: true, // NOVO: Marca como logado
+    logado: true,
   };
 
-  // NOVO: Salvar no localStorage marcando todos os outros como não logados
+  // Salvar no localStorage marcando todos os outros como não logados
   const usuariosAtualizados = usuarios.map((usuario) => ({
     ...usuario,
     logado: false,
@@ -209,6 +219,8 @@ export const registerUser = (userData) => (dispatch) => {
     lastLogin: new Date().toISOString(),
   };
 
+  // NOVO: Resetar a última playlist antes do login success
+  dispatch(resetPlaylistOnLogin());
   dispatch(loginSuccess(user));
 };
 

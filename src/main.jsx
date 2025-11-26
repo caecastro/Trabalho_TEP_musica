@@ -10,56 +10,44 @@ import CriadorUser from "./components/assets/CriadorUser.jsx";
 import PrivateRoute from "./components/views/PrivateRoute.jsx";
 import "./index.css";
 
-const router = createBrowserRouter([
+// ✅ Melhor prática: agrupar rotas privadas e públicas de forma clara
+const privateRoutes = [
+  {
+    path: "/home",
+    element: <Home />,
+  },
+  {
+    path: "/criador",
+    element: <CriadorPlaylists />,
+  },
+  {
+    path: "/criador/:id",
+    element: <CriadorPlaylists />,
+  },
+  {
+    path: "/editar-user",
+    element: <CriadorUser />,
+  },
+];
+
+const publicRoutes = [
   {
     path: "/",
     element: <TelaInicial />,
   },
   {
-    path: "/home",
-    element: (
-      <PrivateRoute>
-        <Home />
-      </PrivateRoute>
-    ),
-  },
-  // REMOVA esta rota ↓
-  // {
-  //   path: "/musicas/:id",
-  //   element: (
-  //     <PrivateRoute>
-  //       <Musicas />
-  //     </PrivateRoute>
-  //   ),
-  // },
-  {
-    path: "/criador",
-    element: (
-      <PrivateRoute>
-        <CriadorPlaylists />
-      </PrivateRoute>
-    ),
-  },
-  {
-    path: "/criador/:id",
-    element: (
-      <PrivateRoute>
-        <CriadorPlaylists />
-      </PrivateRoute>
-    ),
-  },
-  {
-    path: "/register",
+    path: "/register", // cadastro de usuário é público
     element: <CriadorUser />,
   },
-  {
-    path: "/editar-user",
-    element: (
-      <PrivateRoute>
-        <CriadorUser />
-      </PrivateRoute>
-    ),
-  },
+];
+
+// Envolvidas todas rotas privadas com PrivateRoute de forma centralizada
+const router = createBrowserRouter([
+  ...publicRoutes,
+  ...privateRoutes.map((route) => ({
+    ...route,
+    element: <PrivateRoute>{route.element}</PrivateRoute>,
+  })),
 ]);
 
 ReactDOM.createRoot(document.getElementById("root")).render(

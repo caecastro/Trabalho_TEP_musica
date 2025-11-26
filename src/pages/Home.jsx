@@ -2,7 +2,10 @@ import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchPopularTracks } from "../store/slices/musicSlice";
-import { populateDefaultPlaylist } from "../store/slices/playlistsSlice";
+import {
+  populateDefaultPlaylist,
+  setCurrentPlaylist,
+} from "../store/slices/playlistsSlice";
 import Controller from "../components/assets/Controller";
 import Musicas from "../components/assets/Musicas";
 import { getFromLocalStorage } from "../utils/localStorage";
@@ -13,8 +16,10 @@ function Home() {
   const [searchTerm, setSearchTerm] = useState("");
   const [currentUser, setCurrentUser] = useState(null);
   const [selectedMusica, setSelectedMusica] = useState(null);
+  const [isFirstLoad, setIsFirstLoad] = useState(true);
 
-  const { popularTracks, loading, error } = useSelector((state) => state.music);
+  const { popularTracks, loading, error, searchResults, searchQuery } =
+    useSelector((state) => state.music);
   const { currentPlaylist } = useSelector((state) => state.playlists);
   const { user } = useSelector((state) => state.auth);
 
@@ -34,7 +39,6 @@ function Home() {
       );
     }
 
-    // Prioridade: usuário marcado como logado -> user do Redux -> último usuário como fallback
     if (usuarioLogado) {
       setCurrentUser(usuarioLogado);
     } else if (user) {
@@ -44,12 +48,34 @@ function Home() {
     }
   }, [dispatch, user]);
 
-  // Popular a playlist padrão quando as músicas carregarem
+  // Efeito específico para garantir playlist padrão no primeiro carregamento após login
   useEffect(() => {
-    if (popularTracks.length > 0) {
+    if (isFirstLoad && popularTracks.length > 0) {
+      // Popular a playlist padrão
+      dispatch(populateDefaultPlaylist(popularTracks));
+
+      // Garantir que a playlist atual seja a padrão
+      const defaultPlaylist = {
+        id: "default_top_10",
+        nome: "Top 10 da Semana",
+        usuarioId: "system",
+        musicas: popularTracks,
+        isDefault: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      dispatch(setCurrentPlaylist(defaultPlaylist));
+      setIsFirstLoad(false);
+    }
+  }, [popularTracks, dispatch, isFirstLoad]);
+
+  // Popular a playlist padrão quando as músicas carregarem (apenas se não for o primeiro load)
+  useEffect(() => {
+    if (!isFirstLoad && popularTracks.length > 0) {
       dispatch(populateDefaultPlaylist(popularTracks));
     }
-  }, [popularTracks, dispatch]);
+  }, [popularTracks, dispatch, isFirstLoad]);
 
   // DEBUG: Log das músicas carregadas
   useEffect(() => {
@@ -75,7 +101,6 @@ function Home() {
   const handleImageError = (e) => {
     console.log("❌ Erro ao carregar imagem:", e.target.src);
 
-    // Fallbacks em ordem de prioridade
     const fallbacks = [
       "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300&h=300&fit=crop",
       "https://via.placeholder.com/300x300/4f46e5/ffffff?text=Music",
@@ -83,20 +108,15 @@ function Home() {
     ];
 
     const currentSrc = e.target.src;
-
-    // Encontrar o índice do fallback atual
     let currentIndex = fallbacks.findIndex((fallback) =>
       currentSrc.includes(fallback)
     );
 
     if (currentIndex === -1) {
-      // Se não está usando fallback ainda, usar o primeiro
       e.target.src = fallbacks[0];
     } else if (currentIndex < fallbacks.length - 1) {
-      // Tentar próximo fallback
       e.target.src = fallbacks[currentIndex + 1];
     }
-    // Se já está no último fallback, não fazer nada
   };
 
   // Função para carregar imagem com fallback
@@ -112,18 +132,21 @@ function Home() {
     );
   };
 
-  // Usar músicas da playlist atual ou das populares
-  const musicas =
-    currentPlaylist?.musicas?.length > 0
-      ? currentPlaylist.musicas
-      : popularTracks;
+  // Usar músicas da busca ou da playlist atual ou das populares
+  const musicas = searchQuery
+    ? searchResults
+    : currentPlaylist?.musicas?.length > 0
+    ? currentPlaylist.musicas
+    : popularTracks;
 
-  const musicasFiltradas = musicas.filter(
-    (musica) =>
-      musica.nome.toLowerCase().includes(searchTerm) ||
-      musica.artista.toLowerCase().includes(searchTerm) ||
-      musica.genero.toLowerCase().includes(searchTerm)
-  );
+  const musicasFiltradas = searchTerm
+    ? musicas.filter(
+        (musica) =>
+          musica.nome.toLowerCase().includes(searchTerm) ||
+          musica.artista.toLowerCase().includes(searchTerm) ||
+          musica.genero.toLowerCase().includes(searchTerm)
+      )
+    : musicas;
 
   const musicasParaMostrar = searchTerm ? musicasFiltradas : musicas;
 
@@ -182,7 +205,9 @@ function Home() {
 
       {/* Título dinâmico baseado na playlist atual */}
       <div className="text-white text-2xl mb-6">
-        {currentPlaylist
+        {searchQuery
+          ? `Resultados para: "${searchQuery}"`
+          : currentPlaylist
           ? currentPlaylist.nome.toUpperCase()
           : "TOP 10 DA SEMANA!"}
       </div>
@@ -220,13 +245,13 @@ function Home() {
           </div>
         ))}
 
-        {searchTerm && musicasFiltradas.length === 0 && (
+        {searchQuery && musicasParaMostrar.length === 0 && (
           <div className="col-span-full text-center text-white py-8">
-            Nenhuma música encontrada para &quot;{searchTerm}&quot;
+            Nenhuma música encontrada para &quot;{searchQuery}&quot;
           </div>
         )}
 
-        {musicas.length === 0 && !loading && (
+        {musicasParaMostrar.length === 0 && !loading && !searchQuery && (
           <div className="col-span-full text-center text-white py-8">
             Nenhuma música disponível no momento
           </div>
