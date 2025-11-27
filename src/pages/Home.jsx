@@ -9,6 +9,7 @@ import {
 import Controller from "../components/assets/Controller";
 import Musicas from "../components/assets/Musicas";
 import { getFromLocalStorage } from "../utils/localStorage";
+import { FaChevronLeft, FaChevronRight } from "react-icons/fa";
 
 function Home() {
   // ===== HOOKS =====
@@ -20,14 +21,18 @@ function Home() {
   const [currentUser, setCurrentUser] = useState(null);
   const [selectedMusica, setSelectedMusica] = useState(null);
   const [isFirstLoad, setIsFirstLoad] = useState(true);
+  const [currentPage, setCurrentPage] = useState(0);
 
   // ===== REDUX STATE =====
   const { popularTracks, loading, error, searchResults, searchQuery } =
     useSelector((state) => state.music);
-  const { currentPlaylist } = useSelector((state) => state.playlists);
+  const { currentPlaylist, playlists } = useSelector(
+    (state) => state.playlists
+  );
   const { user } = useSelector((state) => state.auth);
 
   // ===== CONSTANTES DERIVADAS =====
+  const itemsPerPage = 10;
   const musicas = searchQuery
     ? searchResults
     : currentPlaylist?.musicas?.length > 0
@@ -44,6 +49,10 @@ function Home() {
     : musicas;
 
   const musicasParaMostrar = searchTerm ? musicasFiltradas : musicas;
+  const totalPages = Math.ceil(musicasParaMostrar.length / itemsPerPage);
+  const startIndex = currentPage * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const musicasPaginadas = musicasParaMostrar.slice(startIndex, endIndex);
 
   // ===== EFEITOS =====
 
@@ -67,6 +76,11 @@ function Home() {
       dispatch(populateDefaultPlaylist(popularTracks));
     }
   }, [popularTracks, dispatch, isFirstLoad]);
+
+  // Resetar página quando mudar a busca ou playlist
+  useEffect(() => {
+    setCurrentPage(0);
+  }, [searchQuery, currentPlaylist]);
 
   // ===== FUNÇÕES AUXILIARES =====
 
@@ -122,6 +136,18 @@ function Home() {
     setSearchTerm(term.toLowerCase());
   };
 
+  const handleNextPage = () => {
+    if (currentPage < totalPages - 1) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  const handlePrevPage = () => {
+    if (currentPage > 0) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
   const handleImageError = (e) => {
     const fallbacks = [
       "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300&h=300&fit=crop",
@@ -155,7 +181,8 @@ function Home() {
 
   const getTituloDinamico = () => {
     if (searchQuery) return `Resultados para: "${searchQuery}"`;
-    if (currentPlaylist) return currentPlaylist.nome.toUpperCase();
+    if (currentPlaylist && !currentPlaylist.isDefault)
+      return currentPlaylist.nome.toUpperCase();
     return "TOP 10 DA SEMANA!";
   };
 
@@ -221,53 +248,96 @@ function Home() {
       {/* Título Dinâmico */}
       <div className="text-white text-2xl mb-6">{getTituloDinamico()}</div>
 
-      {/* Grid de Músicas */}
-      <main className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 px-4 w-full max-w-6xl mb-8">
-        {musicasParaMostrar.slice(0, 10).map((musica) => (
-          <div
-            key={musica.id}
-            className="bg-white rounded-lg shadow-md overflow-hidden hover:scale-105 transition-transform cursor-pointer"
-            onClick={() => handleClickMusica(musica)}
+      {/* Container Principal com Botões de Navegação */}
+      <div className="relative w-full max-w-6xl mb-8">
+        {/* Botão Anterior */}
+        {totalPages > 1 && currentPage > 0 && (
+          <button
+            onClick={handlePrevPage}
+            className="absolute left-0 top-1/2 transform -translate-y-1/2 -translate-x-4 z-10 w-12 h-12 bg-gray-800 hover:bg-gray-700 text-white rounded-full flex items-center justify-center shadow-lg transition-all"
           >
-            {/* Thumbnail com Fallback */}
-            <div className="h-32 bg-gray-200 relative">
-              {loadImageWithFallback(musica.thumbnail, musica.nome)}
-            </div>
-
-            {/* Informações da Música */}
-            <div className="p-3">
-              <h3 className="font-semibold text-gray-800 truncate">
-                {musica.nome}
-              </h3>
-              <p className="text-sm text-gray-600 truncate">
-                <span className="font-medium">Artista:</span> {musica.artista}
-              </p>
-              <p className="text-sm text-gray-600 truncate">
-                <span className="font-medium">Gênero:</span> {musica.genero}
-              </p>
-              <p className="text-sm text-gray-600 truncate">
-                <span className="font-medium">Álbum:</span> {musica.album}
-              </p>
-              <p className="text-xs text-gray-500 mt-1">
-                {musica.ano} • {musica.duracao}
-              </p>
-            </div>
-          </div>
-        ))}
-
-        {/* Estados Vazios */}
-        {searchQuery && musicasParaMostrar.length === 0 && (
-          <div className="col-span-full text-center text-white py-8">
-            Nenhuma música encontrada para &quot;{searchQuery}&quot;
-          </div>
+            <FaChevronLeft size={20} />
+          </button>
         )}
 
-        {musicasParaMostrar.length === 0 && !loading && !searchQuery && (
-          <div className="col-span-full text-center text-white py-8">
-            Nenhuma música disponível no momento
-          </div>
+        {/* Grid de Músicas */}
+        <main className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 px-4">
+          {musicasPaginadas.map((musica) => (
+            <div
+              key={musica.id}
+              className="bg-white rounded-lg shadow-md overflow-hidden hover:scale-105 transition-transform cursor-pointer"
+              onClick={() => handleClickMusica(musica)}
+            >
+              {/* Thumbnail com Fallback */}
+              <div className="h-32 bg-gray-200 relative">
+                {loadImageWithFallback(musica.thumbnail, musica.nome)}
+              </div>
+
+              {/* Informações da Música */}
+              <div className="p-3">
+                <h3 className="font-semibold text-gray-800 truncate">
+                  {musica.nome}
+                </h3>
+                <p className="text-sm text-gray-600 truncate">
+                  <span className="font-medium">Artista:</span> {musica.artista}
+                </p>
+                <p className="text-sm text-gray-600 truncate">
+                  <span className="font-medium">Gênero:</span> {musica.genero}
+                </p>
+                <p className="text-sm text-gray-600 truncate">
+                  <span className="font-medium">Álbum:</span> {musica.album}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {musica.ano} • {musica.duracao}
+                </p>
+              </div>
+            </div>
+          ))}
+
+          {/* Estados Vazios */}
+          {searchQuery && musicasParaMostrar.length === 0 && (
+            <div className="col-span-full text-center text-white py-8">
+              Nenhuma música encontrada para &quot;{searchQuery}&quot;
+            </div>
+          )}
+
+          {musicasParaMostrar.length === 0 && !loading && !searchQuery && (
+            <div className="col-span-full text-center text-white py-8">
+              Nenhuma música disponível no momento
+            </div>
+          )}
+        </main>
+
+        {/* Botão Próximo */}
+        {totalPages > 1 && currentPage < totalPages - 1 && (
+          <button
+            onClick={handleNextPage}
+            className="absolute right-0 top-1/2 transform -translate-y-1/2 translate-x-4 z-10 w-12 h-12 bg-gray-800 hover:bg-gray-700 text-white rounded-full flex items-center justify-center shadow-lg transition-all"
+          >
+            <FaChevronRight size={20} />
+          </button>
         )}
-      </main>
+      </div>
+
+      {/* Indicador de Página */}
+      {totalPages > 1 && (
+        <div className="flex items-center gap-2 mb-4">
+          <span className="text-white text-sm">
+            Página {currentPage + 1} de {totalPages}
+          </span>
+          <div className="flex gap-1">
+            {Array.from({ length: totalPages }, (_, i) => (
+              <button
+                key={i}
+                onClick={() => setCurrentPage(i)}
+                className={`w-2 h-2 rounded-full transition-all ${
+                  i === currentPage ? "bg-blue-500" : "bg-gray-600"
+                }`}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Controller Fixo */}
       <div className="fixed bottom-0 left-0 right-0 bg-gray-900 pt-4 pb-6">

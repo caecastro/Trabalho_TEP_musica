@@ -19,6 +19,7 @@ function CriadorPlaylists() {
   const [nome, setNome] = useState("");
   const [musicasSelecionadas, setMusicasSelecionadas] = useState([]);
   const [playlistOriginal, setPlaylistOriginal] = useState(null);
+  const [musicasDisponiveis, setMusicasDisponiveis] = useState([]);
 
   // Redux state
   const { user } = useSelector((state) => state.auth);
@@ -27,19 +28,46 @@ function CriadorPlaylists() {
 
   // ===== CONSTANTES DERIVADAS =====
   const isEditMode = Boolean(id);
-  const todasSelecionadas = musicasSelecionadas.length === popularTracks.length;
+  const todasSelecionadas =
+    musicasSelecionadas.length === musicasDisponiveis.length;
   const podeSalvar = nome.trim() && musicasSelecionadas.length > 0;
 
   // ===== EFEITOS =====
 
   // Carregar dados iniciais
   useEffect(() => {
-    dispatch(fetchPopularTracks());
+    if (!isEditMode) {
+      // Modo criação: buscar músicas da API
+      dispatch(fetchPopularTracks());
+    }
+  }, [dispatch, isEditMode]);
 
+  // Atualizar músicas disponíveis
+  useEffect(() => {
+    if (isEditMode && playlistOriginal) {
+      // Modo edição: usar músicas da playlist + músicas da API (para novas adições)
+      const musicasCombinadas = [...playlistOriginal.musicas];
+
+      // Adicionar músicas da API que não estão na playlist
+      popularTracks.forEach((track) => {
+        if (!musicasCombinadas.find((m) => m.id === track.id)) {
+          musicasCombinadas.push(track);
+        }
+      });
+
+      setMusicasDisponiveis(musicasCombinadas);
+    } else {
+      // Modo criação: usar apenas músicas da API
+      setMusicasDisponiveis(popularTracks || []);
+    }
+  }, [isEditMode, playlistOriginal, popularTracks]);
+
+  // Carregar playlist para edição
+  useEffect(() => {
     if (isEditMode) {
       carregarPlaylistParaEdicao();
     }
-  }, [dispatch, id, isEditMode, playlists, user, navigate]);
+  }, [id, isEditMode, playlists, user]);
 
   // ===== HANDLERS =====
 
@@ -60,11 +88,13 @@ function CriadorPlaylists() {
     }
 
     setPlaylistOriginal(playlist);
-    setNome(playlist.nome);
+    setNome(playlist.nome || "");
     setMusicasSelecionadas(playlist.musicas || []);
   };
 
   const handleSelectMusica = (musica) => {
+    if (!musica || !musica.id) return;
+
     setMusicasSelecionadas(
       (prev) =>
         prev.find((m) => m.id === musica.id)
@@ -74,7 +104,8 @@ function CriadorPlaylists() {
   };
 
   const handleSelectAll = () => {
-    setMusicasSelecionadas(todasSelecionadas ? [] : [...popularTracks]);
+    if (musicasDisponiveis.length === 0) return;
+    setMusicasSelecionadas(todasSelecionadas ? [] : [...musicasDisponiveis]);
   };
 
   const handleSubmit = (e) => {
@@ -140,7 +171,7 @@ function CriadorPlaylists() {
 
   // ===== RENDER CONDICIONAL =====
 
-  if (loading) {
+  if (loading && !isEditMode) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white">
         <div className="text-2xl">Carregando músicas da API...</div>
@@ -175,14 +206,14 @@ function CriadorPlaylists() {
           <label className="block mb-2 text-lg">Nome da Playlist</label>
           <input
             type="text"
-            value={nome}
+            value={nome || ""}
             onChange={(e) => setNome(e.target.value)}
             placeholder="Digite o nome da sua playlist..."
             className="w-full px-4 py-3 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-blue-500"
             maxLength={50}
           />
           <div className="text-right text-sm text-gray-400 mt-1">
-            {nome.length}/50 caracteres
+            {(nome || "").length}/50 caracteres
           </div>
         </div>
 
@@ -202,7 +233,9 @@ function CriadorPlaylists() {
         {/* Seletor de Músicas */}
         <div>
           <div className="flex justify-between items-center mb-4">
-            <label className="block text-lg">Selecionar Músicas da API</label>
+            <label className="block text-lg">
+              {isEditMode ? "Músicas da Playlist" : "Selecionar Músicas da API"}
+            </label>
             <button
               type="button"
               onClick={handleSelectAll}
@@ -214,7 +247,9 @@ function CriadorPlaylists() {
 
           {/* Lista de Músicas */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-96 overflow-y-auto">
-            {popularTracks.map((musica) => {
+            {(musicasDisponiveis || []).map((musica) => {
+              if (!musica || !musica.id) return null;
+
               const estaSelecionada = musicasSelecionadas.find(
                 (m) => m.id === musica.id
               );
@@ -231,7 +266,7 @@ function CriadorPlaylists() {
                   {/* Checkbox Customizado */}
                   <input
                     type="checkbox"
-                    checked={estaSelecionada}
+                    checked={!!estaSelecionada}
                     onChange={() => handleSelectMusica(musica)}
                     className="hidden"
                   />
@@ -249,7 +284,7 @@ function CriadorPlaylists() {
 
                   {/* Thumbnail da Música */}
                   <img
-                    src={musica.thumbnail}
+                    src={musica.thumbnail || "/src/assets/react.svg"}
                     alt={musica.nome}
                     className="w-12 h-12 object-cover rounded"
                     onError={handleImageError}
@@ -257,16 +292,18 @@ function CriadorPlaylists() {
 
                   {/* Informações da Música */}
                   <div className="flex-1 min-w-0">
-                    <div className="font-semibold truncate">{musica.nome}</div>
+                    <div className="font-semibold truncate">
+                      {musica.nome || "Música sem nome"}
+                    </div>
                     <div className="text-sm text-gray-400 truncate">
-                      {musica.artista}
+                      {musica.artista || "Artista desconhecido"}
                     </div>
                   </div>
 
                   {/* Metadados */}
                   <div className="text-xs text-gray-400 text-right">
-                    <div>{musica.duracao}</div>
-                    <div>{musica.ano}</div>
+                    <div>{musica.duracao || "0:00"}</div>
+                    <div>{musica.ano || "N/A"}</div>
                   </div>
                 </label>
               );
@@ -276,7 +313,7 @@ function CriadorPlaylists() {
           {/* Contador de Músicas Selecionadas */}
           <div className="text-sm text-gray-400 mt-2">
             {musicasSelecionadas.length} música(s) selecionada(s) de{" "}
-            {popularTracks.length} disponíveis
+            {(musicasDisponiveis || []).length} disponíveis
           </div>
         </div>
 
